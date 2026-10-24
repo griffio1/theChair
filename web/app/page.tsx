@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 
 type Row = Record<string, any>;
 type View = "chat" | "conflicts" | "contracts";
+type Theme = "light" | "dark" | "pride";
 type IconName =
   | "chat"
   | "conflicts"
@@ -136,28 +137,27 @@ export default function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [view, setView] = useState<View>("chat");
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<Theme>("light");
   const [connection, setConnection] = useState("Connecting");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    let preferred: "light" | "dark" = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches
+    let preferred: Theme = window.matchMedia("(prefers-color-scheme: dark)")
+      .matches
       ? "dark"
       : "light";
     try {
       const saved = localStorage.getItem("thechair:theme");
-      if (saved === "light" || saved === "dark") preferred = saved;
+      if (saved === "light" || saved === "dark" || saved === "pride")
+        preferred = saved;
     } catch {}
     document.documentElement.dataset.theme = preferred;
     setTheme(preferred);
   }, []);
 
-  function toggleTheme() {
-    const next = theme === "light" ? "dark" : "light";
+  function changeTheme(next: Theme) {
     document.documentElement.dataset.theme = next;
     setTheme(next);
     try {
@@ -545,14 +545,22 @@ export default function Dashboard() {
                   : "Contracts"}
             </strong>
           </div>
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            aria-label={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-            title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
-          >
-            <Icon name={theme === "light" ? "moon" : "sun"} size={16} />
-          </button>
+          <label className="theme-toggle" title="Choose appearance">
+            {theme === "pride" ? (
+              <span aria-hidden="true">🌈</span>
+            ) : (
+              <Icon name={theme === "dark" ? "moon" : "sun"} size={16} />
+            )}
+            <select
+              aria-label="Appearance"
+              value={theme}
+              onChange={(e) => changeTheme(e.target.value as Theme)}
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="pride">Pride</option>
+            </select>
+          </label>
           <label className="compact-profile">
             <span>You</span>
             <input
