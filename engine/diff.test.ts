@@ -52,6 +52,24 @@ test("demo beat: frontend reads user_id -> block field_mismatch", () => {
   assert.equal(out[0].severity, "block");
 });
 
+test("field conflict leads with the evidence line that mentions the field", () => {
+  const c = shape({
+    role: "consumer",
+    file: "demo/web/Login.tsx",
+    responseFields: [s("user_id")],
+    evidence: [
+      { line: 11, snippet: 'const res = await fetch("/api/auth/login", {' },
+      { line: 17, snippet: 'localStorage.setItem("token", data.token);' },
+      { line: 18, snippet: "setGreeting(`Welcome, user #${data.user_id}`);" },
+    ],
+  });
+  const out = diffShape(c, contracts);
+  assert.deepEqual(
+    out[0].evidence.map((e) => e.line),
+    [18, 11, 17],
+  );
+});
+
 test("producer missing token -> block missing_field", () => {
   const out = diffShape(shape({ responseFields: [s("userId")] }), contracts);
   assert.equal(out[0].kind, "missing_field");
