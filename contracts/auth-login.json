@@ -4,12 +4,28 @@
   "method": "POST",
   "path": "/api/auth/login",
   "request": [
-    { "name": "email", "type": "string", "required": true },
-    { "name": "password", "type": "string", "required": true }
+    {
+      "name": "email",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "password",
+      "type": "string",
+      "required": true
+    }
   ],
   "response": [
-    { "name": "userId", "type": "string", "required": true },
-    { "name": "token", "type": "string", "required": true }
+    {
+      "name": "userId",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "token",
+      "type": "string",
+      "required": true
+    }
   ],
   "version": 1,
   "status": "approved",

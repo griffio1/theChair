@@ -53,6 +53,9 @@ export async function approveContract(id: string, version: number, approvedBy: s
 export async function approveConflict(conflictId: string, approvedBy: string) {
   const c = await getConflict(conflictId);
   if (!c) throw new Error(`No conflict ${conflictId}`);
+  const contract = c.contractId ? (await getContracts()).find((x) => x.id === c.contractId) : undefined;
+  // Commit first: if GitHub rejects it, the card stays open instead of turning green.
+  const commitSha = contract ? await publish(contract, approvedBy) : undefined;
   await setConflictStatus(conflictId, "approved");
   await postMessage({
     author: { type: "system", name: "theChair" },
@@ -60,8 +63,5 @@ export async function approveConflict(conflictId: string, approvedBy: string) {
     body: `${approvedBy} approved the fix: ${c.suggestedFix ?? c.summary}`,
     refId: conflictId,
   });
-  if (!c.contractId) return { contract: undefined, commitSha: undefined };
-  const contract = (await getContracts()).find((x) => x.id === c.contractId);
-  if (!contract) return { contract: undefined, commitSha: undefined };
-  return { contract, commitSha: await publish(contract, approvedBy) };
+  return { contract, commitSha };
 }
