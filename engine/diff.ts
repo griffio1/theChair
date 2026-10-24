@@ -76,13 +76,19 @@ function compareFields(opts: {
     evidence: shape.evidence.map((e) => ({ file: shape.file, ...e })),
   };
   const route = `${contract.method} ${contract.path}`;
+  // Cards show the first evidence line, so lead with the lines that mention the field.
+  const about = (name: string) => {
+    const hit = new RegExp(`\\b${name.replace(/[^A-Za-z0-9_$]/g, "\\$&")}\\b`);
+    const ev = base.evidence;
+    return { ...base, evidence: [...ev.filter((e) => hit.test(e.snippet)), ...ev.filter((e) => !hit.test(e.snippet))] };
+  };
 
   for (const f of used) {
     const exact = specByExact.get(f.name);
     if (exact) {
       if (exact.type !== "unknown" && f.type !== "unknown" && exact.type !== f.type) {
         out.push({
-          ...base,
+          ...about(f.name),
           kind: "type_mismatch",
           severity: "block",
           summary: `The ${label} for ${route} uses \`${f.name}\` as ${f.type}, but the contract says ${exact.type}.`,
@@ -94,7 +100,7 @@ function compareFields(opts: {
     const near = specByNorm.get(normalizeName(f.name));
     if (near) {
       out.push({
-        ...base,
+        ...about(f.name),
         kind: "field_mismatch",
         severity: "block",
         summary: `The ${label} for ${route} uses \`${f.name}\`, but the contract says \`${near.name}\`. ${opts.consequence(near.name)}`,
@@ -104,7 +110,7 @@ function compareFields(opts: {
     }
     // Field not in the contract at all.
     out.push({
-      ...base,
+      ...about(f.name),
       kind: "extra_field",
       // Reading a field the other side never sends is a real bug; sending an extra one is just noise.
       severity: mustProvide ? "warn" : "block",

@@ -43,7 +43,7 @@ function localContracts(root: string): Contract[] {
   const dir = join(root, "contracts");
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .filter((f) => f.endsWith(".json"))
+    .filter((f) => f.endsWith(".json") && !f.startsWith(".")) // skip macOS ._ files on external drives
     .map((f) => JSON.parse(readFileSync(join(dir, f), "utf8")) as Contract);
 }
 
@@ -83,7 +83,8 @@ async function main() {
   if (!fp) process.exit(0);
   const abs = isAbsolute(fp) ? fp : join(root, fp);
   const file = relative(root, abs);
-  if (/^(contracts|node_modules|\.next)\//.test(file)) process.exit(0);
+  // Same skips as the webhook: test fixtures are full of API-looking strings.
+  if (/^(contracts|node_modules|\.next)\/|\.test\./.test(file)) process.exit(0);
 
   const content = proposedContent(input, abs);
   if (content === undefined) process.exit(0);
