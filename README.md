@@ -50,7 +50,7 @@ claude mcp add thechair \
   -- npx tsx mcp/server.ts
 ```
 
-The hook in `.claude/settings.json` is picked up automatically; set `THECHAIR_API_URL` and `THECHAIR_DEVELOPER` in your shell so blocks show on the dashboard.
+The hook in `.claude/settings.json` is picked up automatically; set `THECHAIR_API_URL`, `THECHAIR_DEVELOPER`, and the private `THECHAIR_AGENT_TOKEN` in its environment so authenticated checks show on the dashboard. Add the same private token to the MCP launcher's environment.
 
 Codex (`~/.codex/config.toml`):
 
@@ -58,10 +58,13 @@ Codex (`~/.codex/config.toml`):
 [mcp_servers.thechair]
 command = "npx"
 args = ["tsx", "/ABSOLUTE/PATH/thechair/mcp/server.ts"]
-env = { THECHAIR_API_URL = "http://localhost:3000", THECHAIR_AGENT = "codex", THECHAIR_DEVELOPER = "<name>" }
+env = { THECHAIR_API_URL = "http://localhost:3000", THECHAIR_AGENT = "codex", THECHAIR_DEVELOPER = "<name>", THECHAIR_AGENT_TOKEN = "<private-agent-credential>" }
 ```
 
-Pass: both agents can call `get_contracts` and get `auth-login` back.
+Pass: both agents can call `get_contracts` and get `auth-login` back. Register a
+30-day agent credential with `web/scripts/configure-agent.ts` as described in
+`web/WORKSPACES.md`. Store the raw token only in ignored env/private configuration
+files. Agent credentials cannot approve contract changes.
 
 ### GitHub webhook
 

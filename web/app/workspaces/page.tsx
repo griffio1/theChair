@@ -176,6 +176,7 @@ export default function Workspaces() {
   const [activeSpace, setActiveSpace] = useState("");
   const [activeChat, setActiveChat] = useState("");
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null);
+  const [teamWorkspace, setTeamWorkspace] = useState("");
   const [history, setHistory] = useState<{
     scope: string;
     items: WorkspaceMessage[];
@@ -250,6 +251,7 @@ export default function Workspaces() {
   useEffect(() => {
     setLoadedFor(userId);
     setSpaces([]);
+    setTeamWorkspace("");
     setDetail(null);
     setActiveSpace("");
     setActiveChat("");
@@ -304,6 +306,15 @@ export default function Workspaces() {
         );
         if (ctrl.signal.aborted) return;
         setDetail(result);
+        const binding = await supabase
+          .from("chair_legacy_binding")
+          .select("workspace_id")
+          .eq("workspace_id", activeSpace)
+          .maybeSingle();
+        if (ctrl.signal.aborted) return;
+        setTeamWorkspace(
+          binding.error ? "" : (binding.data?.workspace_id ?? ""),
+        );
         setActiveChat((id) =>
           result.chats.some((c) => c.id === id)
             ? id
@@ -593,6 +604,9 @@ export default function Workspaces() {
                   {label}
                 </button>
               ))}
+              {activeSpace === teamWorkspace && teamWorkspace && (
+                <a href="/team">Team agreements & AI chat ↗</a>
+              )}
             </nav>
             <div className="wp-section-label">
               <span>CONVERSATIONS</span>
@@ -656,9 +670,11 @@ export default function Workspaces() {
               </button>
             </>
           )}
-          <a className="wp-legacy-link" href="/">
-            Open legacy team dashboard ↗
-          </a>
+          {accountReady && activeSpace === teamWorkspace && teamWorkspace && (
+            <a className="wp-legacy-link" href="/team">
+              Team agreements & AI chat ↗
+            </a>
+          )}
         </div>
       </aside>
       <div className="wp-main">
@@ -950,6 +966,11 @@ export default function Workspaces() {
                           : "Keep everyone aligned."}
                       </h1>
                       <p>Only this workspace’s {view} appear here.</p>
+                      {activeSpace === teamWorkspace && (
+                        <a className="wp-secondary" href="/team">
+                          Open team agreements & approvals
+                        </a>
+                      )}
                     </div>
                   </section>
                   <section className="wp-people-panel">
@@ -975,13 +996,15 @@ export default function Workspaces() {
                         <div className="wp-empty">
                           <h3>No contracts in this workspace yet</h3>
                           <p>
-                            Existing agent contracts remain in the legacy team
-                            dashboard. Workspace-specific agent connections are
-                            not connected yet.
+                            {activeSpace === teamWorkspace
+                              ? "Propose your first agreement in the team AI chat."
+                              : "No repository agent is connected to this workspace yet."}
                           </p>
-                          <a className="wp-secondary" href="/">
-                            Open legacy dashboard ↗
-                          </a>
+                          {activeSpace === teamWorkspace && (
+                            <a className="wp-secondary" href="/team">
+                              Open team agreements ↗
+                            </a>
+                          )}
                         </div>
                       )
                     ) : current.conflicts.length ? (
@@ -1007,12 +1030,15 @@ export default function Workspaces() {
                       <div className="wp-empty">
                         <h3>No workspace conflict reports</h3>
                         <p>
-                          This workspace has no agent connection yet. Existing
-                          agent checks still report to the legacy dashboard.
+                          {activeSpace === teamWorkspace
+                            ? "Your agents have no conflict reports for this workspace."
+                            : "No repository agent is connected to this workspace yet."}
                         </p>
-                        <a className="wp-secondary" href="/">
-                          View existing checks ↗
-                        </a>
+                        {activeSpace === teamWorkspace && (
+                          <a className="wp-secondary" href="/team">
+                            View team activity ↗
+                          </a>
+                        )}
                       </div>
                     )}
                   </section>
@@ -1155,11 +1181,12 @@ export default function Workspaces() {
                     <div className="wp-context-note">
                       <strong>Team conversation</strong>
                       <p>
-                        These chats are shared with your team. For the current
-                        AI contract assistant and agent checks, use the legacy
-                        dashboard.
+                        These conversations are shared only with this
+                        workspace’s members.
                       </p>
-                      <a href="/">Open legacy dashboard ↗</a>
+                      {activeSpace === teamWorkspace && (
+                        <a href="/team">Team agreements & AI chat ↗</a>
+                      )}
                     </div>
                   </aside>
                 </div>

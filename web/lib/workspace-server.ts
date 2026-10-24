@@ -252,6 +252,55 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     ]);
     for (const r of results) check(r.error);
     const [w, chats, members, invitations, contracts, conflicts] = results;
+    let contractRows = ((contracts.data as Row[]) ?? []).map((r) => r.contract);
+    let conflictRows = ((conflicts.data as Row[]) ?? []).map((r) => r.conflict);
+    const binding = await db
+      .from("chair_legacy_binding")
+      .select("workspace_id")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    check(binding.error);
+    if (binding.data) {
+      // The original single-repository ledger belongs only to its explicit binding.
+      // Query with the caller's JWT so direct database RLS remains authoritative.
+      const [legacyContracts, legacyConflicts] = await Promise.all([
+        db
+          .from("contracts")
+          .select("*")
+          .order("id")
+          .order("version", { ascending: false }),
+        db.from("conflicts").select("*"),
+      ]);
+      check(legacyContracts.error);
+      check(legacyConflicts.error);
+      contractRows = (legacyContracts.data ?? []).map((r) => ({
+        id: r.id,
+        name: r.name,
+        method: r.method,
+        path: r.path,
+        request: r.request,
+        response: r.response,
+        version: r.version,
+        status: r.status,
+        owner: r.owner,
+        notes: r.notes,
+      }));
+      conflictRows = (legacyConflicts.data ?? []).map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        severity: r.severity,
+        summary: r.summary,
+        contractId: r.contract_id,
+        affectedPaths: r.affected_paths,
+        suggestedFix: r.suggested_fix,
+        status: r.status,
+        detectedBy: r.detected_by,
+        agent: r.agent,
+        developer: r.developer,
+        evidence: r.evidence,
+        createdAt: r.created_at,
+      }));
+    }
     return {
       workspace: workspace(w.data!, role),
       chats: ((chats.data as Row[]) ?? []).map(chat),
@@ -262,8 +311,8 @@ export async function workspaceRequest(req: Request, parts: string[]) {
         joinedAt: r.joined_at,
       })),
       invitations: ((invitations.data as Row[]) ?? []).map(invitation),
-      contracts: ((contracts.data as Row[]) ?? []).map((r) => r.contract),
-      conflicts: ((conflicts.data as Row[]) ?? []).map((r) => r.conflict),
+      contracts: contractRows,
+      conflicts: conflictRows,
     };
   }
   if (parts.length === 2 && parts[1] === "chats" && req.method === "POST") {

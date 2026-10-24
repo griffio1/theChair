@@ -256,6 +256,12 @@ test("webhook signatures reject missing, modified and malformed signatures", (t)
   assert.equal(verifySignature(body, "sha256=bad"), false);
 });
 
+test("webhooks fail closed when a signing secret is not configured", (t) => {
+  environment(t, { GITHUB_WEBHOOK_SECRET: "" });
+  assert.equal(verifySignature("{}", null), false);
+  assert.equal(verifySignature("{}", "sha256=anything"), false);
+});
+
 test("re-delivering a push does not duplicate a conflict or its dashboard card", async (t) => {
   const { tables } = fixture(t);
   const first = await handlePush(payload);

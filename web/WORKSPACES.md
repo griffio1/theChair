@@ -2,8 +2,11 @@
 
 Carter is implementing the workspace UI and, at Carter's explicit request, its
 storage, sign-in, and membership work too. Parag continues deployment work.
-The legacy dashboard and agent workflows remain the existing single-team app.
-New authenticated collaboration is at `/workspaces`.
+The home page redirects to `/workspaces`, where account sign-in is required to
+load workspace data. The original single-repository ledger is explicitly bound
+to Carter's **Test67** workspace; its members can open `/team` through the
+"Team agreements & AI chat" link. Original chat, contracts, conflicts, and agent
+activity stay in their existing tables, with access restricted to that workspace.
 
 ## Current implementation
 
@@ -23,12 +26,18 @@ service key. Database permissions and RLS enforce membership even when callers
 access Supabase directly. Mutations use functions with fixed search paths,
 validated identities, atomic workspace creation, and duplicate-safe acceptance.
 
-The scoped contract/conflict tables are empty until workspace-aware agent
-integration is implemented. **The existing AI assistant, MCP checks, webhook,
-approvals, and global ledger are still in the legacy dashboard.** New chats are
-team conversations, not AI contract-proposal chats. No existing team data is
-copied into a new workspace. This is not yet a migration of the legacy app into
-a fully isolated multi-tenant agent service.
+The existing AI assistant and agent activity are available only inside the bound
+team workspace. Its Contracts and Conflicts tabs read that same protected ledger.
+Additional workspaces have their own human chats and scoped tables, but do not
+automatically gain the repository's AI/agent integration or access to its data.
+No old data is copied or deleted during the transition.
+
+Browser calls to the original APIs verify Supabase identity and team membership.
+Chat author/proposal author/approval identity come from membership, not request
+display names. Approvals require an owner. Agent calls require a hashed, scoped,
+expiring credential and cannot invoke human chat or approval actions. Direct
+Supabase reads are also restricted by grants and RLS. GitHub webhooks fail closed
+when the signing secret is absent.
 
 The legacy dashboard and workspace screens share `components/appearance-picker.tsx` and the
 existing `thechair:theme` preference. Both support Light, Dark, and Pride.
@@ -117,6 +126,30 @@ Implementation references: [Supabase Auth sign-up](https://supabase.com/docs/ref
 
 ## UI reconciliation
 
+The team-access rollout requires `web/sql/secure-team.sql` after `workspaces.sql`.
+Carter explicitly approved Test67 (`cb57bef0-6a3d-4967-a0e2-4dc2982f78ff`) as the
+ledger's home. Both migrations are now installed in the shared Supabase project.
+The second migration refuses to silently reassign an existing binding.
+
+Register an agent credential using an existing workspace owner's user ID:
+
+```powershell
+node --env-file=web/.env.local --import tsx web/scripts/configure-agent.ts OWNER_USER_ID AGENT_LABEL
+```
+
+The script stores only a hash in Supabase and writes the raw 30-day credential
+to ignored `web/.env.local` as `THECHAIR_AGENT_TOKEN`, without printing it.
+Add that value privately to the MCP launcher and Claude hook environment.
+Restart the agent client after its configuration changes. Credentials stop
+working if revoked, expired, or their issuer is no longer a workspace owner.
+Parag needs to configure his agent/hook environment; Carter's Codex is configured.
+Vercel needs no new agent-token variable: the API verifies database hashes with
+its existing server credential. Keep `GITHUB_WEBHOOK_SECRET` configured.
+
+Live checks verified anonymous/outsider API and database denial, member reads,
+owner-only approvals, scoped MCP access, and workspace sharing. Temporary test
+accounts and memberships were removed without changing original team data.
+
 Merged Parag's `dad23f0` from main: conflict evidence starts with the breaking line,
 and the hook skips test/macOS metadata files. These changes are in engine/hooks;
 they do not replace the dashboard or Pride styles. No Vercel project settings
@@ -124,8 +157,8 @@ were changed by this branch; Parag continues to manage deployment.
 
 ## Checks
 
-At implementation time: production build and web TypeScript passed; root tests
-passed 34 checks, and web tests passed 13 checks. Root `npm run typecheck` fails
+For the protection rollout, root tests passed 35 checks and web tests passed 16
+checks. Root `npm run typecheck` still has the previously reported failure
 in Parag's newly merged `engine/diff.test.ts:68`: `out[0].evidence` is optional.
 Parag can assert that evidence exists before mapping it. This branch does not
 edit his engine code. Browser automation was unavailable, so visual interaction
@@ -142,6 +175,7 @@ node web/node_modules/typescript/bin/tsc -p web/tsconfig.json --noEmit --increme
 npm --prefix web test
 npm test
 node --env-file=web/.env.local --import tsx web/scripts/check-workspaces.ts
+node --env-file=web/.env.local --import tsx web/scripts/check-team-access.ts
 ```
 
 Manual checks: create two workspaces and two chats, write different messages,

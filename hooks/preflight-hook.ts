@@ -62,7 +62,10 @@ async function check(shapes: ExtractedShape[], file: string, root: string): Prom
       const timer = setTimeout(() => ctrl.abort(), 3000);
       const res = await fetch(`${api}/api/preflight?source=hook`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          ...(process.env.THECHAIR_AGENT_TOKEN ? { "x-thechair-agent-token": process.env.THECHAIR_AGENT_TOKEN } : {}),
+        },
         body: JSON.stringify(req),
         signal: ctrl.signal,
       });

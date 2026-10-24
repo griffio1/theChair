@@ -9,8 +9,8 @@
   The API routes import the repo's server, engine, analyzer, github and shared folders.
 - Install command: `npm ci`; build command: `npm run build`.
 - Keep the default Next.js output directory.
-- Production branch: `main`. Use `agent/codex/workspaces` to preview the new
-  authenticated workspace screens and APIs before merging.
+- Production branch: `main`. Workspace and team-access changes are developed in
+  `agent/codex/workspaces` and `agent/codex/secure-team` respectively.
 
 The local production build passed on Node 24.19.0 with Next.js 15.5.28.
 
@@ -44,19 +44,21 @@ connection to that deployment returned all nine approved contracts.
 
 ## First deployment
 
-Start with a protected preview. New `/workspaces` routes authenticate users and
-enforce membership, but the legacy dashboard's chat and approval routes still
-use server credentials without user authentication. Approvals can write to
-GitHub. Agree on access controls with Parag before making legacy routes public.
+The home page redirects to the workspace sign-in flow. Workspace routes enforce
+membership; original ledger routes require membership in the explicitly bound
+team workspace. Only owners can approve changes. MCP and hook clients require
+their private `THECHAIR_AGENT_TOKEN`; GitHub deliveries require a signature.
 
-Before using the new workspaces, apply `web/sql/workspaces.sql` to Supabase and
+Before using the new workspaces, apply `web/sql/workspaces.sql` followed by
+`web/sql/secure-team.sql` to Supabase and
 allow the deployment's `/workspaces` URL in Supabase Auth redirect settings.
 See `web/WORKSPACES.md` for identity, invitation, and verification details.
 
 1. Connect Vercel and select the account/team that should own the project.
 2. Set the project settings and environment variables above.
-3. Deploy a preview and check the dashboard, theme selector, and approved
-   `auth-login` contract returned by `GET /api/contracts`.
+3. Check signed-out `/` redirects to `/workspaces`, anonymous `/api/contracts`
+   returns 401, and a member of the bound team can open `/team`. Use a configured
+   MCP client to verify `auth-login` is still available with the private token.
 4. Coordinate the production promotion and webhook configuration with Parag.
 
 The webhook endpoint will be `https://<deployment>/api/github/webhook`, with push

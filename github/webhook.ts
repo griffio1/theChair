@@ -14,7 +14,7 @@ export function verifySignature(
   signature: string | null,
 ): boolean {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  if (!secret) return true; // dev mode: no secret configured
+  if (!secret) return false;
   if (!signature) return false;
   const expected =
     "sha256=" + createHmac("sha256", secret).update(rawBody).digest("hex");
