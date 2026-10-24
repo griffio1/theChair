@@ -62,6 +62,7 @@ function fixture(
   };
   const requests: { method: string; url: URL }[] = [];
   const reads: string[] = [];
+  const failures = new Map<string, number>();
   let nextId = 0;
   const json = (value: unknown) =>
     new Response(JSON.stringify(value), {
@@ -97,13 +98,31 @@ function fixture(
           "The push pipeline should only read and insert ledger data",
         );
         const body = JSON.parse(String(init?.body));
-        const inserted = (Array.isArray(body) ? body : [body]).map(
-          (row: Row) => ({
-            id: `test-${++nextId}`,
-            created_at: new Date().toISOString(),
-            ...row,
-          }),
-        );
+        const status = failures.get(name);
+        if (status) {
+          failures.delete(name);
+          return new Response(
+            JSON.stringify({ message: "Simulated write failure" }),
+            { status },
+          );
+        }
+        const incoming: Row[] = Array.isArray(body) ? body : [body];
+        // Mirror Postgres primary-key enforcement rather than silently appending duplicates.
+        if (
+          incoming.some(
+            (row) => row.id && rows.some((existing) => existing.id === row.id),
+          )
+        ) {
+          return new Response(
+            JSON.stringify({ code: "23505", message: "duplicate primary key" }),
+            { status: 409 },
+          );
+        }
+        const inserted = incoming.map((row: Row) => ({
+          id: `test-${++nextId}`,
+          created_at: new Date().toISOString(),
+          ...row,
+        }));
         rows.push(...inserted);
         return json(inserted);
       }
@@ -139,7 +158,12 @@ function fixture(
       assert.fail(`Unmocked network destination blocked: ${url.origin}`);
     },
   );
-  return { tables, requests, reads };
+  return {
+    tables,
+    requests,
+    reads,
+    failNext: (table: string, status: number) => failures.set(table, status),
+  };
 }
 
 test("a pushed mismatch creates one blocking conflict and its dashboard card", async (t) => {
@@ -205,6 +229,14 @@ test("non-code files, generated files and tests are excluded from analysis", asy
     ".next/generated.ts",
     "dist/bundle.js",
     "build/output.js",
+    "web/app/page.tsx",
+    "server/chat.ts",
+    "engine/diff.ts",
+    "mcp/server.ts",
+    "hooks/preflight.ts",
+    "github/webhook.ts",
+    "analyzer/extract.ts",
+    "shared/types.ts",
     "demo/web/Login.test.tsx",
     "demo/web/Login.tsx",
   ]);
@@ -224,19 +256,82 @@ test("webhook signatures reject missing, modified and malformed signatures", (t)
   assert.equal(verifySignature(body, "sha256=bad"), false);
 });
 
-test(
-  "re-delivering a push does not duplicate a conflict or its dashboard card",
-  {
-    skip: "Waiting for Parag's active webhook change before implementing delivery deduplication",
-  },
-  async (t) => {
-    const { tables } = fixture(t);
-    await handlePush(payload);
-    await handlePush(payload);
-    assert.equal(tables.conflicts.length, 1);
-    assert.equal(
-      tables.messages.filter((m) => m.kind === "conflict").length,
-      1,
-    );
-  },
-);
+test("re-delivering a push does not duplicate a conflict or its dashboard card", async (t) => {
+  const { tables } = fixture(t);
+  const first = await handlePush(payload);
+  const second = await handlePush(payload);
+  assert.equal(first[0].id, second[0].id);
+  assert.equal(tables.events.length, 1);
+  assert.equal(tables.conflicts.length, 1);
+  assert.equal(tables.messages.filter((m) => m.kind === "conflict").length, 1);
+});
+
+test("concurrent deliveries create one event, conflict and dashboard card", async (t) => {
+  const { tables } = fixture(t);
+  const results = await Promise.all([
+    handlePush(payload),
+    handlePush(payload),
+    handlePush(payload),
+  ]);
+  assert.ok(results.every((rows) => rows[0].id === results[0][0].id));
+  assert.equal(tables.events.length, 1);
+  assert.equal(tables.conflicts.length, 1);
+  assert.equal(tables.messages.length, 1);
+});
+
+test("a replay preserves an approved conflict instead of reopening it", async (t) => {
+  const { tables } = fixture(t);
+  await handlePush(payload);
+  tables.conflicts[0].status = "approved";
+  const replay = await handlePush(payload);
+  assert.equal(replay[0].status, "approved");
+  assert.equal(tables.conflicts[0].status, "approved");
+  assert.equal(tables.messages.length, 1);
+});
+
+test("a retry recovers an announcement that failed after saving the conflict", async (t) => {
+  const { tables, failNext } = fixture(t);
+  failNext("messages", 503);
+  await assert.rejects(handlePush(payload), /messages -> 503:/);
+  assert.equal(tables.conflicts.length, 1);
+  assert.equal(tables.messages.length, 0);
+  await handlePush(payload);
+  assert.equal(tables.events.length, 1);
+  assert.equal(tables.conflicts.length, 1);
+  assert.equal(tables.messages.length, 1);
+  assert.equal(tables.messages[0].ref_id, tables.conflicts[0].id);
+});
+
+test("conflict storage failures propagate and a retry can finish the check", async (t) => {
+  const { tables, failNext } = fixture(t);
+  failNext("conflicts", 503);
+  await assert.rejects(handlePush(payload), /conflicts -> 503:/);
+  assert.equal(tables.messages.length, 0);
+  await handlePush(payload);
+  assert.equal(tables.conflicts.length, 1);
+  assert.equal(tables.messages.length, 1);
+});
+
+test("a 409 without the expected row is not mistaken for a successful replay", async (t) => {
+  const { tables, failNext } = fixture(t);
+  failNext("events", 409);
+  await assert.rejects(handlePush(payload), /events -> 409:/);
+  assert.equal(tables.conflicts.length, 0);
+});
+
+test("re-delivering a clean push does not duplicate the all-clear event", async (t) => {
+  const { tables } = fixture(t, healthy);
+  await Promise.all([handlePush(payload), handlePush(payload)]);
+  assert.equal(tables.events.length, 1);
+  assert.equal(tables.messages.length, 1);
+  assert.equal(tables.messages[0].kind, "event");
+});
+
+test("the same snapshot pushed to another branch remains a separate check", async (t) => {
+  const { tables } = fixture(t);
+  await handlePush(payload);
+  await handlePush({ ...payload, ref: "refs/heads/agent/codex/another-demo" });
+  assert.equal(tables.events.length, 2);
+  assert.equal(tables.conflicts.length, 2);
+  assert.equal(tables.messages.length, 2);
+});
