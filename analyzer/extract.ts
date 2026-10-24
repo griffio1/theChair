@@ -1,5 +1,5 @@
-// Shape extractor (M8). Gemini with a JSON schema at temperature 0, cached by commit SHA,
-// with an 8-second timeout that falls back to the deterministic extractor.
+// Shape extractor (M8). Gemini with a JSON schema, cached by commit SHA.
+// Auto mode falls back after 8 seconds; explicit Gemini checks allow 30 seconds.
 // EXTRACTOR=auto (default) | gemini | deterministic
 
 import type { ExtractedShape } from "../shared/types";
@@ -48,12 +48,14 @@ const SCHEMA = {
 const PROMPT = `You extract HTTP API shapes from one source file.
 - A "producer" defines an endpoint (e.g. an Express/Next.js handler). requestFields = fields it reads from the JSON body; responseFields = fields it returns in JSON.
 - A "consumer" calls an endpoint (e.g. fetch/axios). requestFields = fields it sends; responseFields = fields it reads from the JSON response.
+- Describe only the successful (2xx) contract. Exclude fields returned only by 4xx/5xx error branches, such as res.status(401).json({ error: ... }). Do not merge error fields into success responses or emit separate shapes for error branches.
+- Set required relative to the successful request/response, not across success and error branches. A field always returned on success is required even if an error branch omits it. For consumers, fields unconditionally sent or read are required.
 - Use the exact field names as written in the code. Do not normalize casing.
 - Use "unknown" when a type is not obvious. Paths start with "/" and keep route params like ":id".
 - evidence: 1-based line numbers and the exact line of code.
 - If the file has no HTTP API code, return {"shapes": []}.`;
 
-async function gemini(file: string, text: string, timeoutMs = 8000): Promise<ExtractedShape[]> {
+async function gemini(file: string, text: string, timeoutMs: number): Promise<ExtractedShape[]> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY not set");
   const model = process.env.GEMINI_MODEL ?? "gemini-flash-latest";
@@ -73,7 +75,12 @@ async function gemini(file: string, text: string, timeoutMs = 8000): Promise<Ext
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: PROMPT }] },
           contents: [{ role: "user", parts: [{ text: `File: ${file}\n\n${numbered}` }] }],
-          generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: SCHEMA },
+          generationConfig: {
+            // Gemini 3 no longer accepts the legacy sampling parameters.
+            ...(!model.startsWith("gemini-3") ? { temperature: 0 } : {}),
+            responseMimeType: "application/json",
+            responseSchema: SCHEMA,
+          },
         }),
       },
     );
@@ -111,7 +118,7 @@ export async function extractShapes(file: string, text: string, sha?: string): P
     result = { shapes: extractDeterministic(file, text), source: "deterministic" };
   } else {
     try {
-      result = { shapes: await gemini(file, text), source: "gemini" };
+      result = { shapes: await gemini(file, text, mode === "gemini" ? 30000 : 8000), source: "gemini" };
     } catch (e) {
       if (mode === "gemini") throw e;
       console.warn(`[extract] Gemini failed for ${file}, using deterministic: ${(e as Error).message}`);
