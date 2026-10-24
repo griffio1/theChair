@@ -1,0 +1,17 @@
+{
+  "id": "workspace-chat-messages",
+  "name": "Read a workspace chat",
+  "method": "GET",
+  "path": "/api/workspaces/:workspaceId/chats/:chatId/messages",
+  "request": [],
+  "response": [
+    {
+      "name": "messages",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

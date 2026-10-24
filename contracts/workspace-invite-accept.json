@@ -1,0 +1,23 @@
+{
+  "id": "workspace-invite-accept",
+  "name": "Accept a workspace invitation",
+  "method": "POST",
+  "path": "/api/invitations/accept",
+  "request": [
+    {
+      "name": "token",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "workspaceId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

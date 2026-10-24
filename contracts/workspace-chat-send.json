@@ -1,0 +1,28 @@
+{
+  "id": "workspace-chat-send",
+  "name": "Send a workspace message",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/chats/:chatId/messages",
+  "request": [
+    {
+      "name": "body",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "clientMessageId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "messages",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

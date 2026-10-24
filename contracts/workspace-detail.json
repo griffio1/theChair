@@ -1,0 +1,42 @@
+{
+  "id": "workspace-detail",
+  "name": "Read workspace",
+  "method": "GET",
+  "path": "/api/workspaces/:workspaceId",
+  "request": [],
+  "response": [
+    {
+      "name": "workspace",
+      "type": "object",
+      "required": true
+    },
+    {
+      "name": "chats",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "members",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "invitations",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "contracts",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "conflicts",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

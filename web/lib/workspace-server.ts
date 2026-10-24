@@ -1,0 +1,385 @@
+import { createHash, randomBytes } from "node:crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type {
+  Workspace,
+  WorkspaceChat,
+  WorkspaceInvitation,
+  WorkspaceMessage,
+} from "./workspace-types";
+
+export class WorkspaceError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+type Row = Record<string, any>;
+type Context = { db: SupabaseClient; userId: string };
+
+export function validId(value: string): string {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  )
+    throw new WorkspaceError(400, "Invalid resource ID.");
+  return value;
+}
+export function textField(body: Row, key: string, max: number): string {
+  const value = body[key];
+  if (typeof value !== "string" || !value.trim() || value.trim().length > max)
+    throw new WorkspaceError(
+      400,
+      `Enter a valid ${key} (up to ${max} characters).`,
+    );
+  return value.trim();
+}
+export async function readBody(req: Request): Promise<Row> {
+  // Bound the stream itself; Content-Length alone is not trustworthy.
+  if (
+    !req.headers
+      .get("content-type")
+      ?.toLowerCase()
+      .startsWith("application/json")
+  )
+    throw new WorkspaceError(415, "Send JSON.");
+  const reader = req.body?.getReader();
+  if (!reader) throw new WorkspaceError(400, "Missing request body.");
+  let size = 0;
+  const chunks: Uint8Array[] = [];
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 65536) {
+        await reader.cancel();
+        throw new WorkspaceError(413, "Request is too large.");
+      }
+      chunks.push(value);
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    if (!body || typeof body !== "object" || Array.isArray(body))
+      throw new Error("Invalid body");
+    return body;
+  } catch (error) {
+    if (error instanceof WorkspaceError) throw error;
+    throw new WorkspaceError(400, "Invalid JSON body.");
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function check(error: { code?: string } | null) {
+  if (!error) return;
+  if (["42P01", "PGRST202", "PGRST205"].includes(error.code ?? ""))
+    throw new WorkspaceError(
+      503,
+      "Workspace storage is not ready. Apply the workspace migration in Supabase.",
+    );
+  if (error.code === "42501")
+    throw new WorkspaceError(
+      403,
+      "This account does not have access to that action or invitation.",
+    );
+  if (error.code === "22023")
+    throw new WorkspaceError(
+      400,
+      "The details are invalid or the invitation has expired.",
+    );
+  if (error.code === "23505")
+    throw new WorkspaceError(
+      409,
+      "This member or message already exists. Refresh and try again.",
+    );
+  throw new WorkspaceError(
+    503,
+    "Workspace storage is temporarily unavailable. Please try again.",
+  );
+}
+
+export async function authenticate(req: Request): Promise<Context> {
+  const authorization = req.headers.get("authorization") ?? "";
+  if (!/^Bearer \S+$/i.test(authorization))
+    throw new WorkspaceError(401, "Sign in to continue.");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key)
+    throw new WorkspaceError(503, "Account sign-in is not configured.");
+  // Use the caller's session, never the service key: RLS applies to every query.
+  const db = createClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+    },
+    global: {
+      headers: { Authorization: authorization },
+      fetch: (input, init) =>
+        fetch(input, {
+          ...init,
+          cache: "no-store",
+          signal: AbortSignal.timeout(12000),
+        }),
+    },
+  });
+  const { data, error } = await db.auth.getUser(authorization.slice(7));
+  if (error || !data.user)
+    throw new WorkspaceError(401, "Your session expired. Sign in again.");
+  return { db, userId: data.user.id };
+}
+
+const workspace = (r: Row, role: Workspace["role"]): Workspace => ({
+  id: r.id,
+  name: r.name,
+  role,
+  createdAt: r.created_at,
+});
+const chat = (r: Row): WorkspaceChat => ({
+  id: r.id,
+  workspaceId: r.workspace_id,
+  title: r.title,
+  createdAt: r.created_at,
+});
+const message = (r: Row): WorkspaceMessage => ({
+  id: r.id,
+  chatId: r.chat_id,
+  workspaceId: r.workspace_id,
+  author: { userId: r.author_id, name: r.author_name, type: "human" },
+  body: r.body,
+  createdAt: r.created_at,
+});
+const invitation = (r: Row): WorkspaceInvitation => ({
+  id: r.id,
+  email: r.email,
+  status: r.accepted_at
+    ? "accepted"
+    : Date.parse(r.expires_at) <= Date.now()
+      ? "expired"
+      : "pending",
+  expiresAt: r.expires_at,
+});
+
+async function membership(ctx: Context, id: string) {
+  validId(id);
+  const { data, error } = await ctx.db
+    .from("chair_memberships")
+    .select("role")
+    .eq("workspace_id", id)
+    .eq("user_id", ctx.userId)
+    .maybeSingle();
+  check(error);
+  if (!data) throw new WorkspaceError(404, "Workspace unavailable.");
+  return data.role as Workspace["role"];
+}
+
+export async function workspaceRequest(req: Request, parts: string[]) {
+  const ctx = await authenticate(req);
+  const { db } = ctx;
+  if (!parts.length) {
+    if (req.method === "GET") {
+      const [spaces, roles] = await Promise.all([
+        db
+          .from("chair_workspaces")
+          .select("id,name,created_at")
+          .order("created_at"),
+        db
+          .from("chair_memberships")
+          .select("workspace_id,role")
+          .eq("user_id", ctx.userId),
+      ]);
+      check(spaces.error);
+      check(roles.error);
+      const byId = new Map(
+        (roles.data ?? []).map((r) => [r.workspace_id, r.role]),
+      );
+      return {
+        workspaces: (spaces.data ?? []).map((s) =>
+          workspace(s, byId.get(s.id) as Workspace["role"]),
+        ),
+      };
+    }
+    if (req.method === "POST") {
+      const body = await readBody(req);
+      const { data, error } = await db.rpc("chair_create_workspace", {
+        p_name: textField(body, "name", 80),
+      });
+      check(error);
+      return {
+        workspace: workspace(data.workspace, "owner"),
+        chat: chat(data.chat),
+      };
+    }
+  }
+  if (!parts[0]) throw new WorkspaceError(404, "Route not found.");
+  const workspaceId = validId(parts[0]);
+  const role = await membership(ctx, workspaceId);
+  if (parts.length === 1 && req.method === "GET") {
+    const results = await Promise.all([
+      db
+        .from("chair_workspaces")
+        .select("id,name,created_at")
+        .eq("id", workspaceId)
+        .single(),
+      db
+        .from("chair_chats")
+        .select("id,workspace_id,title,created_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at"),
+      db
+        .from("chair_memberships")
+        .select("user_id,display_name,role,joined_at")
+        .eq("workspace_id", workspaceId)
+        .order("joined_at"),
+      db
+        .from("chair_invitations")
+        .select("id,email,expires_at,accepted_at")
+        .eq("workspace_id", workspaceId)
+        .order("created_at"),
+      db
+        .from("chair_contracts")
+        .select("contract")
+        .eq("workspace_id", workspaceId)
+        .order("version", { ascending: false }),
+      db
+        .from("chair_conflicts")
+        .select("conflict")
+        .eq("workspace_id", workspaceId),
+    ]);
+    for (const r of results) check(r.error);
+    const [w, chats, members, invitations, contracts, conflicts] = results;
+    return {
+      workspace: workspace(w.data!, role),
+      chats: ((chats.data as Row[]) ?? []).map(chat),
+      members: ((members.data as Row[]) ?? []).map((r) => ({
+        userId: r.user_id,
+        displayName: r.display_name,
+        role: r.role,
+        joinedAt: r.joined_at,
+      })),
+      invitations: ((invitations.data as Row[]) ?? []).map(invitation),
+      contracts: ((contracts.data as Row[]) ?? []).map((r) => r.contract),
+      conflicts: ((conflicts.data as Row[]) ?? []).map((r) => r.conflict),
+    };
+  }
+  if (parts.length === 2 && parts[1] === "chats" && req.method === "POST") {
+    const body = await readBody(req);
+    const { data, error } = await db
+      .rpc("chair_create_chat", {
+        p_workspace: workspaceId,
+        p_title: textField(body, "title", 80),
+      })
+      .single<Row>();
+    check(error);
+    if (!data)
+      throw new WorkspaceError(
+        503,
+        "Conversation creation was not confirmed. Refresh before trying again.",
+      );
+    return { chat: chat(data) };
+  }
+  if (parts.length === 4 && parts[1] === "chats" && parts[3] === "messages") {
+    const chatId = validId(parts[2]);
+    const found = await db
+      .from("chair_chats")
+      .select("id")
+      .eq("workspace_id", workspaceId)
+      .eq("id", chatId)
+      .maybeSingle();
+    check(found.error);
+    if (!found.data) throw new WorkspaceError(404, "Conversation unavailable.");
+    if (req.method === "GET") {
+      const { data, error } = await db
+        .from("chair_messages")
+        .select("id,workspace_id,chat_id,author_id,author_name,body,created_at")
+        .eq("workspace_id", workspaceId)
+        .eq("chat_id", chatId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(200);
+      check(error);
+      return { messages: (data ?? []).reverse().map(message) };
+    }
+    if (req.method === "POST") {
+      const body = await readBody(req);
+      const { data, error } = await db
+        .rpc("chair_send_message", {
+          p_workspace: workspaceId,
+          p_chat: chatId,
+          p_body: textField(body, "body", 10000),
+          p_client_id: validId(textField(body, "clientMessageId", 36)),
+        })
+        .single<Row>();
+      check(error);
+      if (!data)
+        throw new WorkspaceError(
+          503,
+          "Message delivery was not confirmed. Retry to check it safely.",
+        );
+      return { messages: [message(data)] };
+    }
+  }
+  if (
+    parts.length === 2 &&
+    parts[1] === "invitations" &&
+    req.method === "POST"
+  ) {
+    if (role !== "owner")
+      throw new WorkspaceError(403, "Only workspace owners can invite people.");
+    const body = await readBody(req);
+    const email = textField(body, "email", 254).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      throw new WorkspaceError(400, "Enter a valid email address.");
+    const token = randomBytes(32).toString("hex");
+    const { data, error } = await db.rpc("chair_create_invitation", {
+      p_workspace: workspaceId,
+      p_email: email,
+      p_token_hash: createHash("sha256").update(token).digest("hex"),
+    });
+    check(error);
+    return {
+      invitation: {
+        ...invitation(data),
+        inviteUrl: `/workspaces#invite=${token}`,
+      },
+    };
+  }
+  throw new WorkspaceError(404, "Route not found.");
+}
+
+export async function acceptInvitation(req: Request) {
+  const { db } = await authenticate(req);
+  const body = await readBody(req);
+  const token = textField(body, "token", 64);
+  if (!/^[a-f0-9]{64}$/.test(token))
+    throw new WorkspaceError(400, "Invalid invitation link.");
+  const { data, error } = await db.rpc("chair_accept_invitation", {
+    p_token_hash: createHash("sha256").update(token).digest("hex"),
+  });
+  check(error);
+  return { workspaceId: data as string };
+}
+
+export async function respond(run: () => Promise<unknown>): Promise<Response> {
+  const headers = {
+    "cache-control": "no-store, private",
+    vary: "Authorization",
+  };
+  try {
+    return Response.json(await run(), { headers });
+  } catch (error) {
+    const known = error instanceof WorkspaceError;
+    return Response.json(
+      {
+        error: known
+          ? error.message
+          : "Something went wrong. Please try again.",
+      },
+      { status: known ? error.status : 500, headers },
+    );
+  }
+}

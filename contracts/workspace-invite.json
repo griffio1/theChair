@@ -1,0 +1,23 @@
+{
+  "id": "workspace-invite",
+  "name": "Invite a workspace member",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/invitations",
+  "request": [
+    {
+      "name": "email",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "invitation",
+      "type": "object",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

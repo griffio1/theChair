@@ -1,0 +1,17 @@
+{
+  "id": "workspace-list",
+  "name": "List my workspaces",
+  "method": "GET",
+  "path": "/api/workspaces",
+  "request": [],
+  "response": [
+    {
+      "name": "workspaces",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

@@ -25,4 +25,12 @@ Only the owner of a directory edits it. Everyone else asks in the main chat.
 ## Current contracts
 <!-- THECHAIR:CONTRACTS:START -->
 - `POST /api/auth/login` (auth-login v1): request `{ email: string, password: string }` → response `{ userId: string, token: string }`
+- `POST /api/invitations/accept` (workspace-invite-accept v1): request `{ token: string }` → response `{ workspaceId: string }`
+- `POST /api/workspaces` (workspace-create v1): request `{ name: string }` → response `{ workspace: object, chat: object }`
+- `GET /api/workspaces` (workspace-list v1): request `{  }` → response `{ workspaces: array }`
+- `GET /api/workspaces/:workspaceId` (workspace-detail v1): request `{  }` → response `{ workspace: object, chats: array, members: array, invitations: array, contracts: array, conflicts: array }`
+- `POST /api/workspaces/:workspaceId/chats` (workspace-chat-create v1): request `{ title: string }` → response `{ chat: object }`
+- `GET /api/workspaces/:workspaceId/chats/:chatId/messages` (workspace-chat-messages v1): request `{  }` → response `{ messages: array }`
+- `POST /api/workspaces/:workspaceId/chats/:chatId/messages` (workspace-chat-send v1): request `{ body: string, clientMessageId: string }` → response `{ messages: array }`
+- `POST /api/workspaces/:workspaceId/invitations` (workspace-invite v1): request `{ email: string }` → response `{ invitation: object }`
 <!-- THECHAIR:CONTRACTS:END -->

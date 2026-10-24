@@ -1,0 +1,23 @@
+{
+  "id": "workspace-chat-create",
+  "name": "Create a workspace chat",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/chats",
+  "request": [
+    {
+      "name": "title",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "chat",
+      "type": "object",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

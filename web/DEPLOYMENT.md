@@ -9,8 +9,8 @@
   The API routes import the repo's server, engine, analyzer, github and shared folders.
 - Install command: `npm ci`; build command: `npm run build`.
 - Keep the default Next.js output directory.
-- Production branch: `main`. Use `agent/codex/demo-flow` for a preview of the
-  unmerged Pride mode and webhook regression tests.
+- Production branch: `main`. Use `agent/codex/workspaces` to preview the new
+  authenticated workspace screens and APIs before merging.
 
 The local production build passed on Node 24.19.0 with Next.js 15.5.28.
 
@@ -20,31 +20,38 @@ Add these to the Vercel project for the intended deployment environment. Copy
 values from the ignored `web/.env.local`; do not commit or paste the file into
 logs. Server credentials must not use a `NEXT_PUBLIC_` prefix.
 
-| Variable | Value/source |
-| --- | --- |
-| `SUPABASE_URL` | Shared Supabase URL |
-| `SUPABASE_SERVICE_KEY` | Shared secret/service key, server only |
-| `NEXT_PUBLIC_SUPABASE_URL` | Same shared URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Publishable key; this is the name the browser client reads |
-| `LLM_PROVIDER` | `groq` |
-| `GROQ_API_KEY` | Shared Groq key |
-| `GROQ_MODEL` | Copy the configured local model |
-| `GEMINI_API_KEY` | Carter's Gemini key |
-| `GEMINI_MODEL` | `gemini-3.8-flash` |
-| `EXTRACTOR` | `auto` |
-| `GITHUB_TOKEN` | Repository-scoped token with Contents read/write |
-| `GITHUB_REPO` | `griffio1/theChair` |
-| `GITHUB_WEBHOOK_SECRET` | Agree on a shared value with Parag before enabling GitHub deliveries |
+| Variable                        | Value/source                                                         |
+| ------------------------------- | -------------------------------------------------------------------- |
+| `SUPABASE_URL`                  | Shared Supabase URL                                                  |
+| `SUPABASE_SERVICE_KEY`          | Shared secret/service key, server only                               |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Same shared URL                                                      |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Publishable key; this is the name the browser client reads           |
+| `LLM_PROVIDER`                  | `groq`                                                               |
+| `GROQ_API_KEY`                  | Shared Groq key                                                      |
+| `GROQ_MODEL`                    | Copy the configured local model                                      |
+| `GEMINI_API_KEY`                | Carter's Gemini key                                                  |
+| `GEMINI_MODEL`                  | `gemini-3.8-flash`                                                   |
+| `EXTRACTOR`                     | `auto`                                                               |
+| `GITHUB_TOKEN`                  | Repository-scoped token with Contents read/write                     |
+| `GITHUB_REPO`                   | `griffio1/theChair`                                                  |
+| `GITHUB_WEBHOOK_SECRET`         | Agree on a shared value with Parag before enabling GitHub deliveries |
 
 `THECHAIR_API_URL`, `THECHAIR_AGENT`, and `THECHAIR_DEVELOPER` configure the local
 MCP server and hook. They are not needed by the hosted dashboard. Keep local MCP
-pointing at localhost until the team intentionally switches it to the deployment.
+pointing at the intended shared API. Carter explicitly switched his local MCP
+connection to `https://the-chair-peach.vercel.app`; a fresh MCP `get_contracts`
+connection to that deployment returned all nine approved contracts.
 
 ## First deployment
 
-Start with a protected preview. The app currently has no user authentication;
-chat and approval routes use server credentials, and approvals can write to
-GitHub. Agree on access controls with Parag before making those routes public.
+Start with a protected preview. New `/workspaces` routes authenticate users and
+enforce membership, but the legacy dashboard's chat and approval routes still
+use server credentials without user authentication. Approvals can write to
+GitHub. Agree on access controls with Parag before making legacy routes public.
+
+Before using the new workspaces, apply `web/sql/workspaces.sql` to Supabase and
+allow the deployment's `/workspaces` URL in Supabase Auth redirect settings.
+See `web/WORKSPACES.md` for identity, invitation, and verification details.
 
 1. Connect Vercel and select the account/team that should own the project.
 2. Set the project settings and environment variables above.
