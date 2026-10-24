@@ -46,7 +46,7 @@ const tools: ToolDef[] = [
 
 function systemPrompt(contractsJson: string): string {
   return [
-    "You are AgentSync, the main chat for a hackathon team whose members each code with their own AI agent (Claude Code, Codex).",
+    "You are theChair, the main chat for a hackathon team whose members each code with their own AI agent (Claude Code, Codex).",
     "Your job: help the team agree on what they are building, and turn every agreed API shape into a contract with the propose_contract tool.",
     "Rules:",
     "- Be brief. Plain English, no filler. The team is under time pressure.",
@@ -92,12 +92,12 @@ export async function handleChat(req: ChatRequest): Promise<Message[]> {
           response: a.response ?? [],
           owner: a.owner,
         },
-        proposedBy: "AgentSync AI",
+        proposedBy: "theChair AI",
         reason: a.reason,
       });
       created.push({
         id: `${contract.id}@${contract.version}`,
-        author: { type: "ai", name: "AgentSync AI" },
+        author: { type: "ai", name: "theChair AI" },
         kind: "contract_proposal",
         body: a.reason,
         refId: `${contract.id}@${contract.version}`,
@@ -106,7 +106,7 @@ export async function handleChat(req: ChatRequest): Promise<Message[]> {
     } catch (e) {
       created.push(
         await postMessage({
-          author: { type: "system", name: "AgentSync" },
+          author: { type: "system", name: "theChair" },
           kind: "text",
           body: `Couldn't create that proposal: ${(e as Error).message}`,
         }),
@@ -115,7 +115,7 @@ export async function handleChat(req: ChatRequest): Promise<Message[]> {
   }
 
   if (content && content.trim()) {
-    created.push(await postMessage({ author: { type: "ai", name: "AgentSync AI" }, kind: "text", body: content.trim() }));
+    created.push(await postMessage({ author: { type: "ai", name: "theChair AI" }, kind: "text", body: content.trim() }));
   }
   return created;
 }

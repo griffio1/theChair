@@ -1,5 +1,5 @@
 {
-  "name": "@agentsync/web",
+  "name": "@thechair/web",
   "private": true,
   "scripts": {
     "dev": "next dev",

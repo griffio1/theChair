@@ -1,4 +1,4 @@
-// AgentSync shared interface (M1). FROZEN: changes need both builders' approval + a DECISIONS.md entry.
+// theChair shared interface (M1). FROZEN: changes need both builders' approval + a DECISIONS.md entry.
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

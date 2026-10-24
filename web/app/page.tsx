@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     try {
-      setMe(localStorage.getItem("agentsync:name") ?? "teammate");
+      setMe(localStorage.getItem("thechair:name") ?? "teammate");
     } catch {}
     (async () => {
       const { data: m } = await supabase.from("messages").select("*").order("created_at").limit(200);
@@ -34,7 +34,7 @@ export default function Dashboard() {
     })();
 
     const ch = supabase
-      .channel("agentsync")
+      .channel("thechair")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (p) =>
         setMessages((prev) => (prev.some((x) => x.id === p.new.id) ? prev : [...prev, p.new])),
       )
@@ -81,7 +81,7 @@ export default function Dashboard() {
     <main style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", height: "100vh" }}>
       <section style={{ display: "flex", flexDirection: "column", borderRight: "1px solid #262a33", minWidth: 0 }}>
         <header style={{ padding: 16, borderBottom: "1px solid #262a33", display: "flex", gap: 16, alignItems: "center" }}>
-          <strong>AgentSync</strong>
+          <strong>theChair</strong>
           <span style={{ opacity: 0.7 }}>{caught} caught before merge</span>
           <span style={{ opacity: 0.7 }}>{openCount} open</span>
           <input
@@ -89,7 +89,7 @@ export default function Dashboard() {
             onChange={(e) => {
               setMe(e.target.value);
               try {
-                localStorage.setItem("agentsync:name", e.target.value);
+                localStorage.setItem("thechair:name", e.target.value);
               } catch {}
             }}
             style={{ marginLeft: "auto", width: 120 }}

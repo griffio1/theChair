@@ -1,6 +1,6 @@
 // Claude Code PreToolUse hook: checks the PROPOSED file content against the contracts before
 // Edit/Write/MultiEdit lands. Exit 2 blocks the edit and sends stderr back to Claude.
-// Calls the AgentSync API (so it shows up on the dashboard); if the API is down, checks
+// Calls the theChair API (so it shows up on the dashboard); if the API is down, checks
 // against the local contracts/*.json so it still works offline.
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -50,12 +50,12 @@ function localContracts(root: string): Contract[] {
 async function check(shapes: ExtractedShape[], file: string, root: string): Promise<PreflightResponse> {
   const req = {
     agent: "claude-code" as const,
-    developer: process.env.AGENTSYNC_DEVELOPER ?? "unknown",
+    developer: process.env.THECHAIR_DEVELOPER ?? "unknown",
     intent: `edit ${file}`,
     paths: [file],
     shapes,
   };
-  const api = process.env.AGENTSYNC_API_URL;
+  const api = process.env.THECHAIR_API_URL;
   if (api) {
     try {
       const ctrl = new AbortController();
@@ -93,7 +93,7 @@ async function main() {
   const r = await check(shapes, file, root);
   if (r.verdict === "block") {
     const msg = [
-      "AgentSync blocked this edit: it contradicts the team's API contract.",
+      "theChair blocked this edit: it contradicts the team's API contract.",
       ...r.conflicts.filter((c) => c.severity === "block").map((c) => `- ${c.summary}`),
       r.suggestion ? `\nFix:\n${r.suggestion}` : "",
       "\nApply the fix and retry, or call propose_contract_change if the contract itself should change.",
@@ -102,13 +102,13 @@ async function main() {
     process.exit(2);
   }
   if (r.verdict === "warn") {
-    process.stderr.write(`AgentSync warning: ${r.conflicts.map((c) => c.summary).join(" ")}\n`);
+    process.stderr.write(`theChair warning: ${r.conflicts.map((c) => c.summary).join(" ")}\n`);
   }
   process.exit(0);
 }
 
 main().catch((e) => {
-  // Never break the developer's session because AgentSync failed.
-  process.stderr.write(`AgentSync hook error (edit allowed): ${(e as Error).message}\n`);
+  // Never break the developer's session because theChair failed.
+  process.stderr.write(`theChair hook error (edit allowed): ${(e as Error).message}\n`);
   process.exit(0);
 });

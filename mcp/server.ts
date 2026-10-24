@@ -1,15 +1,15 @@
-// M5: local MCP server (stdio). Each agent talks to AgentSync through these three tools.
-// Add to Claude Code:  claude mcp add agentsync -- npx tsx mcp/server.ts
-// Add to Codex:        see README (mcp_servers.agentsync in ~/.codex/config.toml)
+// M5: local MCP server (stdio). Each agent talks to theChair through these three tools.
+// Add to Claude Code:  claude mcp add thechair -- npx tsx mcp/server.ts
+// Add to Codex:        see README (mcp_servers.thechair in ~/.codex/config.toml)
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import type { AgentName, Contract, ExtractedShape, PreflightResponse } from "../shared/types";
 
-const API = process.env.AGENTSYNC_API_URL ?? "http://localhost:3000";
-const AGENT = (process.env.AGENTSYNC_AGENT ?? "unknown") as AgentName;
-const DEVELOPER = process.env.AGENTSYNC_DEVELOPER ?? "unknown";
+const API = process.env.THECHAIR_API_URL ?? "http://localhost:3000";
+const AGENT = (process.env.THECHAIR_AGENT ?? "unknown") as AgentName;
+const DEVELOPER = process.env.THECHAIR_DEVELOPER ?? "unknown";
 
 async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
@@ -17,13 +17,13 @@ async function api<T>(method: string, path: string, body?: unknown): Promise<T> 
     headers: { "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`AgentSync ${method} ${path} -> ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`theChair ${method} ${path} -> ${res.status}: ${await res.text()}`);
   return (await res.json()) as T;
 }
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 
-const server = new McpServer({ name: "agentsync", version: "0.1.0" });
+const server = new McpServer({ name: "thechair", version: "0.1.0" });
 
 server.registerTool(
   "get_contracts",
@@ -112,7 +112,7 @@ server.registerTool(
       proposedBy: `${AGENT} for ${DEVELOPER}`,
       reason,
     });
-    return text(`Proposed ${c.id} v${c.version}. Waiting for human approval in the AgentSync main chat.`);
+    return text(`Proposed ${c.id} v${c.version}. Waiting for human approval in the theChair main chat.`);
   },
 );
 

@@ -1,8 +1,8 @@
-# AgentSync
+# theChair
 
-Git merges code. AgentSync merges intent.
+Git merges code. theChair merges intent.
 
-Teams mixing AI coding agents (Claude Code, Codex) get conflicts git can't see: one agent writes `userId`, the other reads `user_id`. AgentSync keeps a ledger of the API contracts the team agreed on in the **main chat**, checks agents **before** they write (MCP `preflight` + a Claude Code hook) and **after** they push (GitHub webhook), and posts every conflict into the chat with a plain-English explanation and a one-click fix.
+Teams mixing AI coding agents (Claude Code, Codex) get conflicts git can't see: one agent writes `userId`, the other reads `user_id`. theChair keeps a ledger of the API contracts the team agreed on in the **main chat**, checks agents **before** they write (MCP `preflight` + a Claude Code hook) and **after** they push (GitHub webhook), and posts every conflict into the chat with a plain-English explanation and a one-click fix.
 
 ## Layout and owners
 
@@ -45,20 +45,20 @@ npm test
 Claude Code (from the repo root):
 
 ```bash
-claude mcp add agentsync \
-  -e AGENTSYNC_API_URL=http://localhost:3000 -e AGENTSYNC_AGENT=claude-code -e AGENTSYNC_DEVELOPER=<name> \
+claude mcp add thechair \
+  -e THECHAIR_API_URL=http://localhost:3000 -e THECHAIR_AGENT=claude-code -e THECHAIR_DEVELOPER=<name> \
   -- npx tsx mcp/server.ts
 ```
 
-The hook in `.claude/settings.json` is picked up automatically; set `AGENTSYNC_API_URL` and `AGENTSYNC_DEVELOPER` in your shell so blocks show on the dashboard.
+The hook in `.claude/settings.json` is picked up automatically; set `THECHAIR_API_URL` and `THECHAIR_DEVELOPER` in your shell so blocks show on the dashboard.
 
 Codex (`~/.codex/config.toml`):
 
 ```toml
-[mcp_servers.agentsync]
+[mcp_servers.thechair]
 command = "npx"
-args = ["tsx", "/ABSOLUTE/PATH/agentsync/mcp/server.ts"]
-env = { AGENTSYNC_API_URL = "http://localhost:3000", AGENTSYNC_AGENT = "codex", AGENTSYNC_DEVELOPER = "<name>" }
+args = ["tsx", "/ABSOLUTE/PATH/thechair/mcp/server.ts"]
+env = { THECHAIR_API_URL = "http://localhost:3000", THECHAIR_AGENT = "codex", THECHAIR_DEVELOPER = "<name>" }
 ```
 
 Pass: both agents can call `get_contracts` and get `auth-login` back.
@@ -76,4 +76,4 @@ Deploy `web/` to Vercel (root directory `web`), then in the repo: Settings → W
 
 ## Data note
 
-Changed files are sent to the Gemini API for shape extraction, and chat messages to Groq. Free tiers may use prompts to improve the providers' products. Don't point AgentSync at code you can't share.
+Changed files are sent to the Gemini API for shape extraction, and chat messages to Groq. Free tiers may use prompts to improve the providers' products. Don't point theChair at code you can't share.

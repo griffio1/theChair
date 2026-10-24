@@ -3,7 +3,7 @@
 Rules for every AI coding agent working in this repo (Claude Code reads this via CLAUDE.md).
 
 ## Before you edit
-1. Call the AgentSync MCP tool `get_contracts` at the start of every session.
+1. Call the theChair MCP tool `get_contracts` at the start of every session.
 2. Call `preflight` before editing any file that defines or calls an HTTP API. Pass your intent, the paths you will touch, and the request/response fields you will use.
 3. If `preflight` returns `block`, do not write the code. Apply the suggested fix or ask your developer.
 4. To change a contract, call `propose_contract_change`. Never change a contract shape on your own.
@@ -23,6 +23,6 @@ Only the owner of a directory edits it. Everyone else asks in the main chat.
 - Pull before every session. Merge small and often.
 
 ## Current contracts
-<!-- AGENTSYNC:CONTRACTS:START -->
+<!-- THECHAIR:CONTRACTS:START -->
 - `POST /api/auth/login` (auth-login v1): request `{ email: string, password: string }` → response `{ userId: string, token: string }`
-<!-- AGENTSYNC:CONTRACTS:END -->
+<!-- THECHAIR:CONTRACTS:END -->

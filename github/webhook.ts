@@ -34,7 +34,7 @@ export async function handlePush(p: PushPayload): Promise<Conflict[]> {
   const agent = agentFromBranch(branch);
   const developer = p.pusher?.name ?? "unknown";
 
-  // Ignore AgentSync's own commits (contract + AGENTS.md sync) to avoid loops.
+  // Ignore theChair's own commits (contract + AGENTS.md sync) to avoid loops.
   if (p.head_commit?.message?.startsWith("AGENTS.md: sync") || p.head_commit?.message?.startsWith("contracts: ")) {
     return [];
   }
@@ -63,7 +63,7 @@ export async function handlePush(p: PushPayload): Promise<Conflict[]> {
   if (saved.length) await announceConflicts(saved);
   else if (files.length)
     await postMessage({
-      author: { type: "system", name: "AgentSync" },
+      author: { type: "system", name: "theChair" },
       kind: "event",
       body: `Checked ${files.length} file(s) from ${branch} against the contracts. All clear.`,
     });

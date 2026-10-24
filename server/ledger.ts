@@ -147,7 +147,7 @@ export async function logEvent(e: Omit<ActivityEvent, "id" | "createdAt">) {
 export async function announceConflicts(cs: Conflict[]) {
   for (const c of cs) {
     await postMessage({
-      author: { type: "system", name: "AgentSync" },
+      author: { type: "system", name: "theChair" },
       kind: "conflict",
       body: c.summary,
       refId: c.id,

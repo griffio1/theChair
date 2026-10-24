@@ -1,4 +1,4 @@
-export const metadata = { title: "AgentSync" };
+export const metadata = { title: "theChair" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

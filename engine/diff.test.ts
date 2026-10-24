@@ -149,7 +149,7 @@ test("preflight: own claim and expired claims are ignored", () => {
 });
 
 test("AGENTS.md contract section is rewritten in place", () => {
-  const md = "# Rules\n\n<!-- AGENTSYNC:CONTRACTS:START -->\nold\n<!-- AGENTSYNC:CONTRACTS:END -->\n\nfooter\n";
+  const md = "# Rules\n\n<!-- THECHAIR:CONTRACTS:START -->\nold\n<!-- THECHAIR:CONTRACTS:END -->\n\nfooter\n";
   const v2: Contract = { ...login, version: 2, response: [s("user_id"), s("token")] };
   const out = updateAgentsMd(md, [v2]);
   assert.match(out, /auth-login v2/);

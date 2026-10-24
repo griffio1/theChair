@@ -1,4 +1,4 @@
--- AgentSync ledger schema (M3). Run in the Supabase SQL editor.
+-- theChair ledger schema (M3). Run in the Supabase SQL editor.
 
 create table if not exists contracts (
   id text not null,

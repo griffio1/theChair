@@ -26,7 +26,7 @@ async function publish(contract: Contract, approvedBy: string): Promise<string> 
   );
   await logEvent({ type: "approval", summary: `${approvedBy} approved ${contract.id} v${contract.version}`, sha });
   await postMessage({
-    author: { type: "system", name: "AgentSync" },
+    author: { type: "system", name: "theChair" },
     kind: "event",
     body: `Approved ${contract.id} v${contract.version}. AGENTS.md updated; agents get it on their next \`get_contracts\` call or pull.`,
     refId: contract.id,
@@ -55,7 +55,7 @@ export async function approveConflict(conflictId: string, approvedBy: string) {
   if (!c) throw new Error(`No conflict ${conflictId}`);
   await setConflictStatus(conflictId, "approved");
   await postMessage({
-    author: { type: "system", name: "AgentSync" },
+    author: { type: "system", name: "theChair" },
     kind: "event",
     body: `${approvedBy} approved the fix: ${c.suggestedFix ?? c.summary}`,
     refId: conflictId,

@@ -2,8 +2,8 @@
 
 import type { Contract, FieldSpec } from "../shared/types";
 
-const START = "<!-- AGENTSYNC:CONTRACTS:START -->";
-const END = "<!-- AGENTSYNC:CONTRACTS:END -->";
+const START = "<!-- THECHAIR:CONTRACTS:START -->";
+const END = "<!-- THECHAIR:CONTRACTS:END -->";
 
 function fields(fs: FieldSpec[]): string {
   return `{ ${fs.map((f) => `${f.name}${f.required ? "" : "?"}: ${f.type}`).join(", ")} }`;
