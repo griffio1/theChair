@@ -44,11 +44,12 @@ const tools: ToolDef[] = [
   },
 ];
 
-function systemPrompt(contractsJson: string): string {
+function systemPrompt(contractsJson: string, notices: string): string {
   return [
     "You are theChair, the main chat for a hackathon team whose members each code with their own AI agent (Claude Code, Codex).",
     "Your job: help the team agree on what they are building, and turn every agreed API shape into a contract with the propose_contract tool.",
     "Rules:",
+    "- Reply to the latest human message. The notices below are cards the team already sees on screen; only explain one when someone asks about it.",
     "- Be brief. Plain English, no filler. The team is under time pressure.",
     "- Only call propose_contract when the shape is concrete (method, path, field names and types). If something is missing, ask one short question.",
     "- JSON fields are camelCase unless the team explicitly decides otherwise.",
@@ -57,13 +58,15 @@ function systemPrompt(contractsJson: string): string {
     "",
     "Current approved contracts:",
     contractsJson,
+    "",
+    "Recent theChair notices (conflict cards, proposals, events):",
+    notices || "(none)",
   ].join("\n");
 }
 
 function toLlm(m: Message): ChatMessage {
   if (m.author.type === "ai") return { role: "assistant", content: m.body };
-  const prefix = m.author.type === "system" ? `[${m.kind}] ` : `${m.author.name}: `;
-  return { role: "user", content: prefix + m.body };
+  return { role: "user", content: `${m.author.name}: ${m.body}` };
 }
 
 export async function handleChat(req: ChatRequest): Promise<Message[]> {
@@ -71,9 +74,15 @@ export async function handleChat(req: ChatRequest): Promise<Message[]> {
   created.push(await postMessage({ author: { type: "human", name: req.author }, kind: "text", body: req.body }));
 
   const [history, contracts] = await Promise.all([getMessages(30), getContracts()]);
+  // System notices go into the system prompt as background, not as chat turns,
+  // so the model answers the latest human message instead of the latest card.
+  const notices = history
+    .filter((m) => m.author.type === "system")
+    .map((m) => `- [${m.kind}] ${m.body}`)
+    .join("\n");
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt(JSON.stringify(contracts, null, 1)) },
-    ...history.map(toLlm),
+    { role: "system", content: systemPrompt(JSON.stringify(contracts, null, 1), notices) },
+    ...history.filter((m) => m.author.type !== "system").map(toLlm),
   ];
 
   const { content, toolCalls } = await chatCompletion({ messages, tools });
