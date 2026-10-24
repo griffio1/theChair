@@ -19,7 +19,9 @@ export function verifySignature(rawBody: string, signature: string | null): bool
 }
 
 const CODE = /\.(ts|tsx|js|jsx|mjs|cjs)$/;
-const SKIP = /^(node_modules|\.next|dist|build|contracts)\/|\.test\.|AGENTS\.md$/;
+// theChair's own source lives in this repo too; only check the product code (e.g. demo/).
+const SKIP =
+  /^(node_modules|\.next|dist|build|contracts|web|server|engine|mcp|hooks|github|analyzer|shared)\/|\.test\.|AGENTS\.md$/;
 
 interface PushPayload {
   ref: string;
