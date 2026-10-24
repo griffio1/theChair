@@ -25,6 +25,12 @@ Working and tested here (`npm test`, 20 tests): diff engine, preflight verdicts,
 
 Written but **not yet run** (no network to install packages in the build sandbox): the Next.js app and routes, the MCP server, Supabase calls, Groq/Gemini calls, GitHub calls. Expect small fixes on first run; that's what the hour-3 checkpoint is for.
 
+## Workspaces
+
+Each workspace has its own team dashboard, contracts, AI chat, agent credentials
+and repository connection. See [workspace team setup](web/WORKSPACE-TEAMS.md)
+for migrations, access rules and connection instructions.
+
 ## Setup
 
 ```bash

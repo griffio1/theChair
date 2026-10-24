@@ -1,3 +1,4 @@
+import { inWorkspace } from "../../../../server/workspace-context";
 import type { PreflightRequest } from "../../../../shared/types";
 import { runPreflight } from "../../../../server/preflight";
 import { requireTeam } from "../../../lib/legacy-access";
@@ -24,9 +25,11 @@ export async function POST(req: Request) {
       new URL(req.url).searchParams.get("source") === "hook"
         ? "hook"
         : "preflight";
-    return runPreflight(
-      { ...body, developer: identity.name } as PreflightRequest,
-      source,
+    return inWorkspace(identity.workspaceId, () =>
+      runPreflight(
+        { ...body, developer: identity.name } as PreflightRequest,
+        source,
+      ),
     );
   });
 }

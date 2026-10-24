@@ -14,17 +14,29 @@ import {
 } from "./ledger";
 import { readFile, writeFile } from "./github";
 
-async function publish(contract: Contract, approvedBy: string): Promise<string> {
-  const all = await getContracts();
+async function publish(
+  contract: Contract,
+  approvedBy: string,
+): Promise<string> {
+  const all = (await getContracts()).filter((c) => c.id !== contract.id);
+  all.push(contract);
   const json = JSON.stringify(contract, null, 2) + "\n";
-  await writeFile(`contracts/${contract.id}.json`, json, `contracts: ${contract.id} v${contract.version} (approved by ${approvedBy})`);
+  await writeFile(
+    `contracts/${contract.id}.json`,
+    json,
+    `contracts: ${contract.id} v${contract.version} (approved by ${approvedBy})`,
+  );
   const agents = (await readFile("AGENTS.md"))?.text ?? "# AGENTS.md\n";
   const sha = await writeFile(
     "AGENTS.md",
     updateAgentsMd(agents, all),
     `AGENTS.md: sync contracts after ${contract.id} v${contract.version}`,
   );
-  await logEvent({ type: "approval", summary: `${approvedBy} approved ${contract.id} v${contract.version}`, sha });
+  await logEvent({
+    type: "approval",
+    summary: `${approvedBy} approved ${contract.id} v${contract.version}`,
+    sha,
+  });
   await postMessage({
     author: { type: "system", name: "theChair" },
     kind: "event",
@@ -35,14 +47,20 @@ async function publish(contract: Contract, approvedBy: string): Promise<string> 
 }
 
 /** Approve a proposed contract version. Supersedes the previous approved version. */
-export async function approveContract(id: string, version: number, approvedBy: string) {
+export async function approveContract(
+  id: string,
+  version: number,
+  approvedBy: string,
+) {
   const proposed = await getContract(id, version);
   if (!proposed) throw new Error(`No contract ${id} v${version}`);
-  const prev = (await getContracts()).find((c) => c.id === id);
-  if (prev && prev.version !== version) await setContractStatus(id, prev.version, "superseded");
-  await setContractStatus(id, version, "approved");
   const contract = { ...proposed, status: "approved" as const };
-  return { contract, commitSha: await publish(contract, approvedBy) };
+  const commitSha = await publish(contract, approvedBy);
+  const prev = (await getContracts()).find((c) => c.id === id);
+  if (prev && prev.version !== version)
+    await setContractStatus(id, prev.version, "superseded");
+  await setContractStatus(id, version, "approved");
+  return { contract, commitSha };
 }
 
 /**
@@ -53,7 +71,9 @@ export async function approveContract(id: string, version: number, approvedBy: s
 export async function approveConflict(conflictId: string, approvedBy: string) {
   const c = await getConflict(conflictId);
   if (!c) throw new Error(`No conflict ${conflictId}`);
-  const contract = c.contractId ? (await getContracts()).find((x) => x.id === c.contractId) : undefined;
+  const contract = c.contractId
+    ? (await getContracts()).find((x) => x.id === c.contractId)
+    : undefined;
   // Commit first: if GitHub rejects it, the card stays open instead of turning green.
   const commitSha = contract ? await publish(contract, approvedBy) : undefined;
   await setConflictStatus(conflictId, "approved");

@@ -306,15 +306,7 @@ export default function Workspaces() {
         );
         if (ctrl.signal.aborted) return;
         setDetail(result);
-        const binding = await supabase
-          .from("chair_legacy_binding")
-          .select("workspace_id")
-          .eq("workspace_id", activeSpace)
-          .maybeSingle();
-        if (ctrl.signal.aborted) return;
-        setTeamWorkspace(
-          binding.error ? "" : (binding.data?.workspace_id ?? ""),
-        );
+        setTeamWorkspace(activeSpace);
         setActiveChat((id) =>
           result.chats.some((c) => c.id === id)
             ? id
@@ -605,7 +597,9 @@ export default function Workspaces() {
                 </button>
               ))}
               {activeSpace === teamWorkspace && teamWorkspace && (
-                <a href="/team">Team agreements & AI chat ↗</a>
+                <a href={`/workspaces/${activeSpace}/team`}>
+                  Team agreements & AI chat ↗
+                </a>
               )}
             </nav>
             <div className="wp-section-label">
@@ -671,7 +665,10 @@ export default function Workspaces() {
             </>
           )}
           {accountReady && activeSpace === teamWorkspace && teamWorkspace && (
-            <a className="wp-legacy-link" href="/team">
+            <a
+              className="wp-legacy-link"
+              href={`/workspaces/${activeSpace}/team`}
+            >
               Team agreements & AI chat ↗
             </a>
           )}
@@ -967,7 +964,10 @@ export default function Workspaces() {
                       </h1>
                       <p>Only this workspace’s {view} appear here.</p>
                       {activeSpace === teamWorkspace && (
-                        <a className="wp-secondary" href="/team">
+                        <a
+                          className="wp-secondary"
+                          href={`/workspaces/${activeSpace}/team`}
+                        >
                           Open team agreements & approvals
                         </a>
                       )}
@@ -1001,7 +1001,10 @@ export default function Workspaces() {
                               : "No repository agent is connected to this workspace yet."}
                           </p>
                           {activeSpace === teamWorkspace && (
-                            <a className="wp-secondary" href="/team">
+                            <a
+                              className="wp-secondary"
+                              href={`/workspaces/${activeSpace}/team`}
+                            >
                               Open team agreements ↗
                             </a>
                           )}
@@ -1035,7 +1038,10 @@ export default function Workspaces() {
                             : "No repository agent is connected to this workspace yet."}
                         </p>
                         {activeSpace === teamWorkspace && (
-                          <a className="wp-secondary" href="/team">
+                          <a
+                            className="wp-secondary"
+                            href={`/workspaces/${activeSpace}/team`}
+                          >
                             View team activity ↗
                           </a>
                         )}
@@ -1185,7 +1191,9 @@ export default function Workspaces() {
                         workspace’s members.
                       </p>
                       {activeSpace === teamWorkspace && (
-                        <a href="/team">Team agreements & AI chat ↗</a>
+                        <a href={`/workspaces/${activeSpace}/team`}>
+                          Team agreements & AI chat ↗
+                        </a>
                       )}
                     </div>
                   </aside>

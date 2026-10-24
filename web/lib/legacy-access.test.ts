@@ -22,7 +22,7 @@ test("team access rejects unsigned calls and excludes agent credentials from hum
   );
 });
 
-test("agent credentials must be active, bound to the team, and issued by a current owner", async (t) => {
+test("agent credentials must be active, scoped to their workspace, and issued by a current owner", async (t) => {
   const originalFetch = globalThis.fetch;
   const oldUrl = process.env.SUPABASE_URL,
     oldKey = process.env.SUPABASE_SERVICE_KEY;
@@ -74,7 +74,15 @@ test("agent credentials must be active, bound to the team, and issued by a curre
   active = true;
   bound = false;
   await assert.rejects(
-    requireTeam(req, { allowAgent: true }),
+    requireTeam(
+      new Request("http://localhost", {
+        headers: {
+          "x-thechair-agent-token": "a".repeat(64),
+          "x-thechair-workspace": "another-team",
+        },
+      }),
+      { allowAgent: true },
+    ),
     (e: unknown) => e instanceof WorkspaceError && e.status === 403,
   );
   bound = true;

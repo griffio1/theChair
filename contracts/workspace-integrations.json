@@ -1,0 +1,28 @@
+{
+  "id": "workspace-integrations",
+  "name": "Read workspace connections",
+  "method": "GET",
+  "path": "/api/workspaces/:workspaceId/integrations",
+  "request": [],
+  "response": [
+    {
+      "name": "repository",
+      "type": "unknown",
+      "required": true
+    },
+    {
+      "name": "credentials",
+      "type": "array",
+      "required": true
+    },
+    {
+      "name": "webhookUrl",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter",
+  "notes": "Let workspace owners inspect their repository connection and agent credential metadata without exposing stored secrets; repository is null when unconnected."
+}

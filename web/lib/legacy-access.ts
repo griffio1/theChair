@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { authenticate, WorkspaceError } from "./workspace-server";
+import { authenticate, validId, WorkspaceError } from "./workspace-server";
 
 export interface TeamIdentity {
   workspaceId: string;
   name: string;
   role: "owner" | "member" | "agent";
+  userId?: string;
 }
 
 function unavailable(error: unknown) {
@@ -50,24 +51,25 @@ export async function requireTeam(
     unavailable(error);
     if (!agent)
       throw new WorkspaceError(401, "Agent credential expired or revoked.");
-    const [binding, issuer] = await Promise.all([
-      admin
-        .from("chair_legacy_binding")
-        .select("workspace_id")
-        .eq("workspace_id", agent.workspace_id)
-        .maybeSingle(),
-      admin
-        .from("chair_memberships")
-        .select("user_id")
-        .eq("workspace_id", agent.workspace_id)
-        .eq("user_id", agent.issued_by)
-        .eq("role", "owner")
-        .maybeSingle(),
-    ]);
-    unavailable(binding.error);
+    const requested = req.headers.get("x-thechair-workspace");
+    if (requested && requested !== agent.workspace_id)
+      throw new WorkspaceError(
+        403,
+        "Agent credential belongs to another workspace.",
+      );
+    const issuer = await admin
+      .from("chair_memberships")
+      .select("user_id")
+      .eq("workspace_id", agent.workspace_id)
+      .eq("user_id", agent.issued_by)
+      .eq("role", "owner")
+      .maybeSingle();
     unavailable(issuer.error);
-    if (!binding.data || !issuer.data)
-      throw new WorkspaceError(403, "Agent has no access to this team.");
+    if (!issuer.data)
+      throw new WorkspaceError(
+        403,
+        "Agent issuer is no longer a workspace owner.",
+      );
     return {
       workspaceId: agent.workspace_id,
       name: agent.label,
@@ -75,20 +77,23 @@ export async function requireTeam(
     };
   }
   const ctx = await authenticate(req);
-  const { data: binding, error } = await ctx.db
-    .from("chair_legacy_binding")
-    .select("workspace_id")
-    .maybeSingle();
-  unavailable(error);
-  if (!binding)
-    throw new WorkspaceError(
-      403,
-      "Join the workspace that owns this team ledger to continue.",
-    );
+  let workspaceId = req.headers.get("x-thechair-workspace");
+  if (workspaceId) workspaceId = validId(workspaceId);
+  else {
+    // Compatibility for old clients: only the explicitly bound legacy team.
+    const binding = await ctx.db
+      .from("chair_legacy_binding")
+      .select("workspace_id")
+      .maybeSingle();
+    unavailable(binding.error);
+    workspaceId = binding.data?.workspace_id;
+  }
+  if (!workspaceId)
+    throw new WorkspaceError(403, "Select a workspace you belong to.");
   const member = await ctx.db
     .from("chair_memberships")
     .select("display_name,role")
-    .eq("workspace_id", binding.workspace_id)
+    .eq("workspace_id", workspaceId)
     .eq("user_id", ctx.userId)
     .maybeSingle();
   unavailable(member.error);
@@ -98,7 +103,8 @@ export async function requireTeam(
       "Only a workspace owner can approve changes.",
     );
   return {
-    workspaceId: binding.workspace_id,
+    workspaceId: workspaceId,
+    userId: ctx.userId,
     name: member.data.display_name,
     role: member.data.role,
   };

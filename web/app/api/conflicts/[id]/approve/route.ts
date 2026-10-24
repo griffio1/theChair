@@ -1,3 +1,4 @@
+import { inWorkspace } from "../../../../../../server/workspace-context";
 import { approveConflict } from "../../../../../../server/approve";
 import { requireTeam } from "../../../../../lib/legacy-access";
 import { respond, validId } from "../../../../../lib/workspace-server";
@@ -12,6 +13,8 @@ export async function POST(
   return respond(async () => {
     const identity = await requireTeam(req, { ownerOnly: true });
     const { id } = await params;
-    return approveConflict(validId(id), identity.name);
+    return inWorkspace(identity.workspaceId, () =>
+      approveConflict(validId(id), identity.name),
+    );
   });
 }

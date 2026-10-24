@@ -1,0 +1,96 @@
+# Workspace team dashboards
+
+Every workspace has a dashboard at `/workspaces/:workspaceId/team`, reached through
+**Team agreements & AI chat**. `/team` remains an alias for the original Test67
+workspace. Light, Dark and Pride use the existing shared appearance preference.
+
+## Access and data
+
+All original ledger tables now carry a required `workspace_id`. The migration
+attributes existing rows to the explicitly approved Test67 binding; it does not
+copy or delete that history. Contract IDs/versions and extraction caches are
+unique within a workspace. New workspaces start with empty team ledgers.
+
+Browser APIs verify Supabase membership before installing a request-local server
+workspace context. Every ledger read, insert, update and cache operation requires
+that context; concurrent requests cannot share it. Direct database reads enforce
+membership with RLS, and dashboard queries/realtime subscriptions additionally
+filter the selected workspace. AI history, contract proposals, file claims,
+conflicts and approval publishing use the same context.
+
+Owners approve changes and manage connections. Members can read and chat. Agent
+credentials select their workspace automatically and cannot approve or manage
+connections. Tokens expire after 30 days; revocation or loss of the issuing
+owner's membership disables them. Raw agent tokens are shown once; hashes are
+stored in Supabase. Existing Test67 agent credentials continue to work.
+
+## Repository and agent setup
+
+In a workspace's team dashboard, expand **Repository & agents**:
+
+1. Enter `owner/repository`, a GitHub token and a webhook secret of at least
+   32 characters. GitHub must confirm the token's account has repository admin
+   and push access. Give the token Contents read/write permission as well;
+   GitHub's account permissions are not proof of the token's endpoint permissions.
+2. In that GitHub repository's Settings > Webhooks, configure the displayed URL,
+   JSON content type, push events and the same secret. Connecting in theChair
+   does not create or change GitHub webhook settings automatically.
+3. Create a named agent credential. Copy the one-time value privately into
+   `THECHAIR_AGENT_TOKEN` in that agent's MCP/hook environment; set
+   `THECHAIR_API_URL` to this deployment and restart the agent.
+
+Each repository belongs to one workspace. Credentials can be rotated by saving
+that same repository again; a different project requires a different workspace.
+The server-only connection table stores GitHub tokens and webhook secrets with
+no direct browser grants, including for owners. API responses expose only
+connection metadata. Webhooks select a connection by GitHub's numeric repository
+ID and verify its HMAC before any background work. No workspace header or shared
+environment token can redirect a webhook or approval into another repository.
+
+Reference: [GitHub token permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
+
+## Deployment and current handoff
+
+Run these migrations in order: `workspaces.sql`, `secure-team.sql`, then
+`workspace-teams.sql`. Carter has applied all three to the shared Supabase project.
+Deploy this branch's API and UI together after the migration. Older server code
+cannot insert ledger rows without the new required workspace ID. Do not run the
+old `secure-team.sql` again after the workspace migration; it restores the old
+single-team access policies.
+
+Carter explicitly approved the four new integration contracts and backend
+ownership exception. Approved JSON contracts and AGENTS.md are synchronized;
+the same four approvals are recorded in Test67's ledger.
+
+Parag must finish Test67's repository connection: the existing local GitHub token
+has push/read access but not repository admin access, and no local webhook secret
+is configured. The new implementation intentionally does not silently reuse
+those global credentials for another workspace. Team chat, contracts and agent
+preflight work without a repository connection; approval publishing and GitHub
+push analysis require a valid connection.
+
+Vercel still needs its existing Supabase and LLM/extractor credentials. Repository
+credentials now come from the workspace connection table. `GITHUB_REPO` is only
+used to recognize theChair's own source tree for its demo-file exclusions.
+
+## Verification
+
+Root suite: 36 tests. Web suite: 21 tests, including PostgreSQL isolation,
+concurrent server contexts, AI context/proposal isolation and credential controls.
+Web TypeScript and production build pass. The existing root typecheck issue at
+`engine/diff.test.ts:68` remains Parag's unrelated task.
+
+Live disposable-account checks pass for separate ledgers and claims, scoped
+agents, revocation, owner/member restrictions, signed webhook ping routing,
+existing chat/invitation flows and original Test67 protections. All disposable
+accounts/workspaces were removed. Tests did not publish real GitHub commits.
+A real repository connection and push still need Parag's setup. Visual interaction
+and all three theme variants should be reviewed in a browser.
+
+```powershell
+npm test
+npm --prefix web test
+node --env-file=web/.env.local --import tsx web/scripts/check-workspace-teams.ts
+node --env-file=web/.env.local --import tsx web/scripts/check-workspaces.ts
+node --env-file=web/.env.local --import tsx web/scripts/check-team-access.ts
+```

@@ -1,3 +1,4 @@
+import { RepositoryNotConnectedError } from "../../server/github";
 import { createHash, randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -240,36 +241,22 @@ export async function workspaceRequest(req: Request, parts: string[]) {
         .select("id,email,expires_at,accepted_at")
         .eq("workspace_id", workspaceId)
         .order("created_at"),
-      db
-        .from("chair_contracts")
-        .select("contract")
-        .eq("workspace_id", workspaceId)
-        .order("version", { ascending: false }),
-      db
-        .from("chair_conflicts")
-        .select("conflict")
-        .eq("workspace_id", workspaceId),
     ]);
     for (const r of results) check(r.error);
-    const [w, chats, members, invitations, contracts, conflicts] = results;
-    let contractRows = ((contracts.data as Row[]) ?? []).map((r) => r.contract);
-    let conflictRows = ((conflicts.data as Row[]) ?? []).map((r) => r.conflict);
-    const binding = await db
-      .from("chair_legacy_binding")
-      .select("workspace_id")
-      .eq("workspace_id", workspaceId)
-      .maybeSingle();
-    check(binding.error);
-    if (binding.data) {
-      // The original single-repository ledger belongs only to its explicit binding.
+    const [w, chats, members, invitations] = results;
+    let contractRows: Row[];
+    let conflictRows: Row[];
+    {
+      // Every ledger query is scoped, including when a user belongs to several teams.
       // Query with the caller's JWT so direct database RLS remains authoritative.
       const [legacyContracts, legacyConflicts] = await Promise.all([
         db
           .from("contracts")
           .select("*")
+          .eq("workspace_id", workspaceId)
           .order("id")
           .order("version", { ascending: false }),
-        db.from("conflicts").select("*"),
+        db.from("conflicts").select("*").eq("workspace_id", workspaceId),
       ]);
       check(legacyContracts.error);
       check(legacyConflicts.error);
@@ -421,14 +408,19 @@ export async function respond(run: () => Promise<unknown>): Promise<Response> {
   try {
     return Response.json(await run(), { headers });
   } catch (error) {
-    const known = error instanceof WorkspaceError;
+    const known =
+      error instanceof RepositoryNotConnectedError
+        ? new WorkspaceError(409, error.message)
+        : error instanceof WorkspaceError
+          ? error
+          : null;
     return Response.json(
       {
         error: known
-          ? error.message
+          ? known.message
           : "Something went wrong. Please try again.",
       },
-      { status: known ? error.status : 500, headers },
+      { status: known ? known.status : 500, headers },
     );
   }
 }

@@ -1,0 +1,29 @@
+{
+  "id": "workspace-agent-create",
+  "name": "Create workspace agent credential",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/integrations/agents",
+  "request": [
+    {
+      "name": "label",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "credential",
+      "type": "object",
+      "required": true
+    },
+    {
+      "name": "token",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter",
+  "notes": "Workspace owners issue expiring scoped agent credentials; the raw token is returned once and only its hash is stored."
+}

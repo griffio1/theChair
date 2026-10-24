@@ -1,5 +1,9 @@
 # Workspace rollout
 
+**Current extension:** [Workspace team dashboards](WORKSPACE-TEAMS.md) describes
+the multi-workspace ledger, repository connections, agent credentials and third
+migration. It supersedes the single-team rollout restrictions documented below.
+
 Carter is implementing the workspace UI and, at Carter's explicit request, its
 storage, sign-in, and membership work too. Parag continues deployment work.
 The home page redirects to `/workspaces`, where account sign-in is required to

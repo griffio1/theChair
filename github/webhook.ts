@@ -1,19 +1,20 @@
 // M7: GitHub push webhook -> changed files -> extract shapes -> diff against contracts -> conflict cards.
 
+import { currentWorkspace } from "../server/workspace-context";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { agentFromBranch } from "../shared/types";
 import type { Conflict } from "../shared/types";
 import { extractShapes } from "../analyzer/extract";
 import { diffShapes } from "../engine/diff";
-import { changedFiles, readFile } from "../server/github";
+import { changedFiles, readFile, repositoryConnection } from "../server/github";
 import { getConflict, getContracts, saveConflicts } from "../server/ledger";
 import { insert, select } from "../server/db";
 
 export function verifySignature(
   rawBody: string,
   signature: string | null,
+  secret = process.env.GITHUB_WEBHOOK_SECRET,
 ): boolean {
-  const secret = process.env.GITHUB_WEBHOOK_SECRET;
   if (!secret) return false;
   if (!signature) return false;
   const expected =
@@ -95,7 +96,7 @@ export async function handlePush(p: PushPayload): Promise<Conflict[]> {
     return [];
   }
 
-  const pushId = stableId(process.env.GITHUB_REPO, p.ref, p.before, p.after);
+  const pushId = stableId(currentWorkspace(), p.ref, p.before, p.after);
   await insertOnce("events", {
     id: pushId,
     type: "push",
@@ -107,8 +108,15 @@ export async function handlePush(p: PushPayload): Promise<Conflict[]> {
       `${developer} (${agent}) pushed to ${branch}: ${p.head_commit?.message ?? ""}`.trim(),
   });
 
+  const connection = await repositoryConnection();
+  const isTheChair =
+    connection.repository.toLowerCase() ===
+    process.env.GITHUB_REPO?.toLowerCase();
+  const genericSkip =
+    /(^|\/)(node_modules|\.next|dist|build|\.git)\/|\.test\.|\.spec\.|(^|\/)__tests__\//;
   const files = (await changedFiles(p.before, p.after)).filter(
-    (f) => CODE.test(f) && !SKIP.test(f),
+    (f) =>
+      CODE.test(f) && !genericSkip.test(f) && !(isTheChair && SKIP.test(f)),
   );
   const contracts = await getContracts();
 

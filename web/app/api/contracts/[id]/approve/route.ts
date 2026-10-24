@@ -1,3 +1,4 @@
+import { inWorkspace } from "../../../../../../server/workspace-context";
 import { approveContract } from "../../../../../../server/approve";
 import { requireTeam } from "../../../../../lib/legacy-access";
 import {
@@ -23,6 +24,8 @@ export async function POST(
       version < 1
     )
       throw new WorkspaceError(400, "Invalid contract version.");
-    return approveContract(id, version, identity.name);
+    return inWorkspace(identity.workspaceId, () =>
+      approveContract(id, version, identity.name),
+    );
   });
 }

@@ -1,0 +1,18 @@
+{
+  "id": "workspace-agent-revoke",
+  "name": "Revoke workspace agent credential",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/integrations/agents/:credentialId/revoke",
+  "request": [],
+  "response": [
+    {
+      "name": "credential",
+      "type": "object",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter",
+  "notes": "Workspace owners revoke only credentials belonging to their workspace."
+}

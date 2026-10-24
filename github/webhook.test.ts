@@ -4,8 +4,11 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test, type TestContext } from "node:test";
-import { handlePush, verifySignature } from "./webhook";
+import { inWorkspace } from "../server/workspace-context";
+import { handlePush as push, verifySignature } from "./webhook";
 
+const team = "10000000-0000-4000-8000-000000000001";
+const handlePush: typeof push = (p) => inWorkspace(team, () => push(p));
 type Row = Record<string, unknown>;
 
 const contract = JSON.parse(
@@ -54,7 +57,15 @@ function fixture(
     GITHUB_REPO: "test/thechair",
   });
   const tables: Record<string, Row[]> = {
-    contracts: [structuredClone(contract)],
+    contracts: [{ ...structuredClone(contract), workspace_id: team }],
+    chair_repository_connections: [
+      {
+        workspace_id: team,
+        repository: "test/thechair",
+        repository_id: 1,
+        token: "test-token",
+      },
+    ],
     conflicts: [],
     messages: [],
     events: [],
@@ -149,7 +160,7 @@ function fixture(
           payload.after,
           "Read code at the pushed SHA",
         );
-        assert.equal(file, "demo/web/Login.tsx");
+        assert.ok(paths.includes(file));
         return json({
           content: Buffer.from(text).toString("base64"),
           sha: "test-blob",
@@ -340,4 +351,11 @@ test("the same snapshot pushed to another branch remains a separate check", asyn
   assert.equal(tables.events.length, 2);
   assert.equal(tables.conflicts.length, 2);
   assert.equal(tables.messages.length, 2);
+});
+
+test("connected projects analyze web and server source outside theChair's own repository", async (t) => {
+  fixture(t, broken, ["web/Login.tsx"]);
+  environment(t, { GITHUB_REPO: "different/thechair-source" });
+  const conflicts = await handlePush(payload);
+  assert.ok(conflicts.some((c) => c.kind === "field_mismatch"));
 });

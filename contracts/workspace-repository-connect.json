@@ -1,0 +1,34 @@
+{
+  "id": "workspace-repository-connect",
+  "name": "Connect workspace repository",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/integrations/repository",
+  "request": [
+    {
+      "name": "repository",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "token",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "webhookSecret",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "repository",
+      "type": "object",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter",
+  "notes": "An owner connects one repository after GitHub verifies repository administration access; secrets remain server-only and each repository belongs to one workspace."
+}

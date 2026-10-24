@@ -42,6 +42,14 @@ pointing at the intended shared API. Carter explicitly switched his local MCP
 connection to `https://the-chair-peach.vercel.app`; a fresh MCP `get_contracts`
 connection to that deployment returned all nine approved contracts.
 
+## Workspace team extension
+
+Deploy the workspace-teams API and UI together after applying
+`web/sql/workspace-teams.sql`. The migration is installed in the shared project.
+Each workspace now manages repository credentials and its own webhook secret
+through **Repository & agents**; global GitHub secrets no longer route requests.
+See [the rollout and Parag handoff](WORKSPACE-TEAMS.md).
+
 ## First deployment
 
 The home page redirects to the workspace sign-in flow. Workspace routes enforce

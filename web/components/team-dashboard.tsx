@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
+import WorkspaceConnections from "./workspace-connections";
 import { AppearancePicker } from "../components/appearance-picker";
 
 type Row = Record<string, any>;
@@ -130,10 +131,12 @@ function ContractCard({
 
 export default function TeamDashboard({
   name,
+  workspaceId,
   workspaceName,
   canApprove,
 }: {
   name: string;
+  workspaceId: string;
   workspaceName: string;
   canApprove: boolean;
 }) {
@@ -155,6 +158,7 @@ export default function TeamDashboard({
     if (!data.session) throw new Error("Sign in again");
     return {
       "content-type": "application/json",
+      "x-thechair-workspace": workspaceId,
       authorization: `Bearer ${data.session.access_token}`,
     };
   }
@@ -163,6 +167,7 @@ export default function TeamDashboard({
     const { data, error } = await supabase
       .from("contracts")
       .select("*")
+      .eq("workspace_id", workspaceId)
       .order("id")
       .order("version", { ascending: false });
     if (error) throw error;
@@ -175,13 +180,15 @@ export default function TeamDashboard({
         const { data: m, error: messageError } = await supabase
           .from("messages")
           .select("*")
-          .order("created_at")
+          .eq("workspace_id", workspaceId)
+          .order("created_at", { ascending: false })
           .limit(200);
         if (messageError) throw messageError;
-        setMessages(m ?? []);
+        setMessages((m ?? []).reverse());
         const { data: c, error: conflictError } = await supabase
           .from("conflicts")
-          .select("*");
+          .select("*")
+          .eq("workspace_id", workspaceId);
         if (conflictError) throw conflictError;
         setConflicts(Object.fromEntries((c ?? []).map((x) => [x.id, x])));
         await loadContracts();
@@ -193,10 +200,15 @@ export default function TeamDashboard({
     }
     void load();
     const ch = supabase
-      .channel("thechair")
+      .channel(`thechair:${workspaceId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `workspace_id=eq.${workspaceId}`,
+        },
         (p) =>
           setMessages((prev) =>
             prev.some((x) => x.id === p.new.id) ? prev : [...prev, p.new],
@@ -204,7 +216,12 @@ export default function TeamDashboard({
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "conflicts" },
+        {
+          event: "*",
+          schema: "public",
+          table: "conflicts",
+          filter: `workspace_id=eq.${workspaceId}`,
+        },
         (p) =>
           setConflicts((prev) => {
             const next = { ...prev };
@@ -215,7 +232,12 @@ export default function TeamDashboard({
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "contracts" },
+        {
+          event: "*",
+          schema: "public",
+          table: "contracts",
+          filter: `workspace_id=eq.${workspaceId}`,
+        },
         () => {
           void loadContracts().catch(() =>
             setError("Couldn’t refresh contracts. Refresh to try again."),
@@ -236,7 +258,7 @@ export default function TeamDashboard({
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -284,10 +306,16 @@ export default function TeamDashboard({
           ),
         },
       );
-      if (!response.ok) throw new Error("Approval failed");
+      if (!response.ok) {
+        const failure = await response.json();
+        throw new Error(failure.error || "Approval failed");
+      }
       if (kind === "contract") await loadContracts();
       else {
-        const { data, error } = await supabase.from("conflicts").select("*");
+        const { data, error } = await supabase
+          .from("conflicts")
+          .select("*")
+          .eq("workspace_id", workspaceId);
         if (error) throw error;
         setConflicts(Object.fromEntries((data ?? []).map((c) => [c.id, c])));
       }
@@ -570,6 +598,7 @@ export default function TeamDashboard({
               <span className="orbit-node node-two" />
             </div>
           </section>
+          {canApprove && <WorkspaceConnections workspaceId={workspaceId} />}
           <div className="metrics">
             <button
               className={`metric ${view === "contracts" ? "selected" : ""}`}
