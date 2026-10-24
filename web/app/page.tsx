@@ -48,7 +48,9 @@ export default function Dashboard() {
     };
   }, []);
 
-  useEffect(() => bottom.current?.scrollIntoView({ behavior: "smooth" }), [messages.length]);
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
 
   async function send() {
     if (!draft.trim() || busy) return;
