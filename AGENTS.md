@@ -13,9 +13,9 @@ Only the owner of a directory edits it. Everyone else asks in the main chat.
 
 | Directory | Owner |
 |---|---|
-| /server, /engine, /mcp, /hooks | Builder A (Claude Code) |
-| /web, /github, /analyzer, /demo | Builder B (Codex) |
-| /shared, /contracts, AGENTS.md, DECISIONS.md | Both, agree first |
+| /server, /engine, /mcp, /hooks | Parag (Builder A, Claude Code) |
+| /web, /github, /analyzer, /demo | Carter (Builder B, Codex) |
+| /shared, /contracts, AGENTS.md, DECISIONS.md | Parag + Carter, agree first |
 
 ## Conventions
 - Branches: `agent/<tool>/<topic>`, e.g. `agent/claude-code/auth-backend`.

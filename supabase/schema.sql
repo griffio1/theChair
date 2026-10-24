@@ -90,7 +90,7 @@ insert into contracts (id, version, name, method, path, request, response, statu
 values ('auth-login', 1, 'Login', 'POST', '/api/auth/login',
   '[{"name":"email","type":"string","required":true},{"name":"password","type":"string","required":true}]',
   '[{"name":"userId","type":"string","required":true},{"name":"token","type":"string","required":true}]',
-  'approved', 'builder-a', 'camelCase for all JSON fields.')
+  'approved', 'parag', 'camelCase for all JSON fields.')
 on conflict do nothing;
 
 -- Live dashboard: enable Realtime on these tables.

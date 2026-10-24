@@ -13,6 +13,6 @@
   ],
   "version": 1,
   "status": "approved",
-  "owner": "builder-a",
+  "owner": "parag",
   "notes": "camelCase for all JSON fields."
 }

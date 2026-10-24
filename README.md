@@ -8,16 +8,16 @@ Teams mixing AI coding agents (Claude Code, Codex) get conflicts git can't see: 
 
 | Path | What | Owner |
 |---|---|---|
-| `shared/types.ts` | The frozen interface. Change only with both builders + a DECISIONS.md line | Both |
-| `contracts/` | Approved contracts as JSON (committed by the approve route) | Both |
-| `engine/` | Deterministic diff + preflight verdicts + AGENTS.md writer | A |
-| `server/` | Ledger (Supabase REST), LLM adapter, main chat, approve, GitHub helpers | A |
-| `mcp/` | Local stdio MCP server: `get_contracts`, `preflight`, `propose_contract_change` | A |
-| `hooks/` | Claude Code PreToolUse hook that blocks contract-breaking edits | A |
-| `web/` | Next.js dashboard (main chat + contracts) and API route handlers | B |
-| `github/` | Push webhook pipeline | B |
-| `analyzer/` | Gemini extractor (JSON schema, SHA cache) + deterministic fallback | B |
-| `demo/` | Tiny login app the demo runs on | B |
+| `shared/types.ts` | The frozen interface. Change only with both builders + a DECISIONS.md line | Parag + Carter |
+| `contracts/` | Approved contracts as JSON (committed by the approve route) | Parag + Carter |
+| `engine/` | Deterministic diff + preflight verdicts + AGENTS.md writer | Parag (A) |
+| `server/` | Ledger (Supabase REST), LLM adapter, main chat, approve, GitHub helpers | Parag (A) |
+| `mcp/` | Local stdio MCP server: `get_contracts`, `preflight`, `propose_contract_change` | Parag (A) |
+| `hooks/` | Claude Code PreToolUse hook that blocks contract-breaking edits | Parag (A) |
+| `web/` | Next.js dashboard (main chat + contracts) and API route handlers | Carter (B) |
+| `github/` | Push webhook pipeline | Carter (B) |
+| `analyzer/` | Gemini extractor (JSON schema, SHA cache) + deterministic fallback | Carter (B) |
+| `demo/` | Tiny login app the demo runs on | Carter (B) |
 
 ## Status
 
