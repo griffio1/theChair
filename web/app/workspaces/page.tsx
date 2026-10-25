@@ -313,8 +313,9 @@ export default function Workspaces() {
     setDetail(null);
     const saved = userId ? lastConversation(userId) : null;
     const destination = readWorkspaceLocation(location.search, location.pathname);
-    setActiveSpace(destination.workspaceId || (destination.workspaceSlug ? "" : saved?.workspaceId) || "");
-    setActiveChat(destination.chatId || (!destination.workspaceId || destination.workspaceId === saved?.workspaceId ? saved?.chatId : "") || "");
+    const globalView = destination.view === "home" || destination.view === "account";
+    setActiveSpace(globalView ? "" : destination.workspaceId || (destination.workspaceSlug ? "" : saved?.workspaceId) || "");
+    setActiveChat(globalView ? "" : destination.chatId || (!destination.workspaceId || destination.workspaceId === saved?.workspaceId ? saved?.chatId : "") || "");
     setHistory({ scope: "", items: [] });
     setDrafts({});
     setView(destination.view);
@@ -329,8 +330,9 @@ export default function Workspaces() {
     function restore() {
       const destination = readWorkspaceLocation(location.search, location.pathname);
       const saved = userId ? lastConversation(userId) : null;
-      setActiveSpace(destination.workspaceId || (destination.workspaceSlug ? spaces.find(s => s.slug === destination.workspaceSlug)?.id : saved?.workspaceId) || "");
-      setActiveChat(destination.chatId);
+      const globalView = destination.view === "home" || destination.view === "account";
+      setActiveSpace(globalView ? "" : destination.workspaceId || (destination.workspaceSlug ? spaces.find(s => s.slug === destination.workspaceSlug)?.id : saved?.workspaceId) || "");
+      setActiveChat(globalView ? "" : destination.chatId);
       setView(destination.view);
       setError(destination.workspaceSlug && !spaces.some(s => s.slug === destination.workspaceSlug) ? "Project unavailable." : "");
       setNotice("");
@@ -347,8 +349,9 @@ export default function Workspaces() {
   }, [userId, current?.workspace.id, activeSpace, activeChat, view, chat?.id, space?.slug]);
 
   function navigate(next: View, workspaceId = activeSpace, chatId = activeChat) {
-    setActiveSpace(workspaceId);
-    setActiveChat(chatId);
+    const globalView = next === "home" || next === "account";
+    setActiveSpace(globalView ? "" : workspaceId);
+    setActiveChat(globalView ? "" : chatId);
     setView(next);
     setError("");
     setNotice("");
@@ -369,6 +372,12 @@ export default function Workspaces() {
         if (ctrl.signal.aborted) return;
         setSpaces(result.workspaces);
         const destination = readWorkspaceLocation(location.search, location.pathname);
+        if (destination.view === "home" || destination.view === "account") {
+          setActiveSpace("");
+          setActiveChat("");
+          setError("");
+          return;
+        }
         if (destination.workspaceSlug) {
           const selected = result.workspaces.find(s => s.slug === destination.workspaceSlug);
           setActiveSpace(selected?.id ?? "");
@@ -678,7 +687,7 @@ export default function Workspaces() {
           <span className="wp-brand-mark"><BrandMark size={25} /></span>theChair
           <span className="wp-dot">.</span>
         </a>
-        {session && accountReady && (
+        {session && accountReady && activeSpace && view !== "home" && view !== "account" && (
           <>
             <label className="wp-space-picker">
               <span>WORKSPACE</span>
