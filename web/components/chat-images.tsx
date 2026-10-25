@@ -61,7 +61,10 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
   disabled: boolean; onBusy: (busy: boolean) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
+  const picker = useRef<HTMLElement>(null);
   const active = useRef(true);
+  const inFlight = useRef(false);
+  const chooseLatest = useRef<(files: File[]) => Promise<void>>(async () => {});
   const controller = useRef<AbortController | null>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -71,14 +74,66 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
     active.current = true;
     return () => { active.current = false; controller.current?.abort(); previewUrls.current.forEach(URL.revokeObjectURL); };
   }, []);
+  useEffect(() => {
+    // Listen on the whole composer so dropping/pasting into its textarea works too.
+    const composer = picker.current?.closest("form");
+    if (!composer) return;
+    let depth = 0;
+    const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
+    const reset = () => { depth = 0; composer.classList.remove("chat-image-drop-active"); };
+    const enter = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault(); depth++;
+      composer.classList.add("chat-image-drop-active");
+    };
+    const over = (event: DragEvent) => {
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    };
+    const leave = () => { if (--depth <= 0) reset(); };
+    const drop = (event: DragEvent) => {
+      reset();
+      if (!hasFiles(event)) return;
+      event.preventDefault();
+      void chooseLatest.current(Array.from(event.dataTransfer?.files ?? []));
+    };
+    const paste = (event: ClipboardEvent) => {
+      const files = Array.from(event.clipboardData?.items ?? [])
+        .filter(item => item.kind === "file" && item.type.startsWith("image/"))
+        .map(item => item.getAsFile()).filter((file): file is File => file !== null);
+      if (!files.length) return; // Leave ordinary text paste unchanged.
+      event.preventDefault();
+      void chooseLatest.current(files);
+    };
+    composer.addEventListener("dragenter", enter);
+    composer.addEventListener("dragover", over);
+    composer.addEventListener("dragleave", leave);
+    composer.addEventListener("drop", drop);
+    composer.addEventListener("paste", paste);
+    window.addEventListener("dragend", reset);
+    window.addEventListener("blur", reset);
+    return () => {
+      reset();
+      composer.removeEventListener("dragenter", enter);
+      composer.removeEventListener("dragover", over);
+      composer.removeEventListener("dragleave", leave);
+      composer.removeEventListener("drop", drop);
+      composer.removeEventListener("paste", paste);
+      window.removeEventListener("dragend", reset);
+      window.removeEventListener("blur", reset);
+    };
+  }, []);
   async function choose(files: File[]) {
-    if (uploading || disabled || !files.length) return;
+    if (!files.length) return;
+    if (inFlight.current || disabled) { setError("Wait for the current upload or message to finish, then try again."); return; }
     setError("");
     if (files.length + images.length > 4) { setError("Attach up to four images per message."); return; }
     if (files.some(f => !["image/png","image/jpeg","image/webp"].includes(f.type) || !f.size || f.size > 3 * 1024 * 1024)) {
       setError("Choose PNG, JPEG or WebP files up to 3 MiB each."); return;
     }
     const abort = new AbortController(); controller.current = abort;
+    inFlight.current = true;
     setUploading(true); onBusy(true);
     const pending = files.map(file => ({name:file.name,url:URL.createObjectURL(file)}));
     previewUrls.current = pending.map(p => p.url); setPreviews(pending);
@@ -96,11 +151,13 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
       }
     } catch (e) { if (active.current) setError(e instanceof Error ? e.message : "Image upload failed."); }
     finally {
+      inFlight.current = false;
       pending.forEach(p => URL.revokeObjectURL(p.url)); previewUrls.current = [];
       if (active.current) { setPreviews([]); setUploading(false); onBusy(false); }
     }
   }
-  return <section className="chat-image-picker" aria-label="Image attachments">
+  chooseLatest.current = choose;
+  return <section ref={picker} className="chat-image-picker" aria-label="Image attachments">
     <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e => {
       void choose(Array.from(e.target.files ?? [])); e.target.value="";
     }} />
@@ -108,7 +165,7 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
       <button type="button" className="chat-image-add" disabled={disabled || uploading || images.length >= 4} onClick={() => input.current?.click()}>
         {uploading ? "Uploading…" : "+ Add images"}
       </button>
-      <small>PNG, JPG, WebP · 3 MiB each · up to 4</small>
+      <small>Drop images here or paste with Ctrl+V / ⌘V · up to 4, 3 MiB each</small>
     </div>
     {!!images.length && <div className="chat-image-drafts">{images.map(image => <div key={image.id}>
       <PrivateImage workspaceId={workspaceId} image={image} />

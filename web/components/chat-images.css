@@ -15,5 +15,10 @@
 .chat-image-drafts .chat-image-open img, .chat-image-preview { max-width:120px; height:80px; object-fit:cover; border-radius:8px; }
 .chat-image-drafts > div > button { margin-top:4px; font-size:11px; }
 .chat-image-error { color:var(--ink); font-size:12px; }
+.wp-composer.chat-image-drop-active, .composer.chat-image-drop-active {
+  outline:2px dashed var(--wp-accent, var(--blue));
+  outline-offset:3px;
+  box-shadow:0 0 0 5px color-mix(in srgb, var(--wp-accent, var(--blue)) 15%, transparent);
+}
 [data-theme="pride"] .chat-image-add { border-color:var(--blue); }
 @media(max-width:600px) { .chat-image { max-width:min(220px,65vw); } .chat-image-picker-bar { gap:6px; } }

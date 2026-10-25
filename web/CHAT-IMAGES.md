@@ -6,6 +6,12 @@ four PNG/JPEG/WebP images per message, 3 MiB per input file, still images up to
 25 megapixels. The server strips metadata, resizes to at most 4096×4096, and stores
 WebP. Captions and filenames are rendered as text. Existing text chat is preserved.
 
+Drop image files anywhere in either chat composer, or focus the message box and
+paste a copied image/screenshot with Ctrl+V (Command+V on macOS). Normal text paste
+is unchanged. The composer highlights while files are dragged over it. These
+entry points share the file picker's validation, previews and upload behavior;
+images are attached as drafts and are sent only when you press Send.
+
 Images are shared with human workspace members. They are **not sent to the AI for
 image analysis**. Team image posts use a separate route and do not trigger an AI
 reply. Text-only team messages still use the existing AI route.
