@@ -1,0 +1,28 @@
+{
+  "id": "workspace-image-upload",
+  "name": "Upload a private chat image",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/images",
+  "request": [
+    {
+      "name": "file",
+      "type": "unknown",
+      "required": true
+    },
+    {
+      "name": "clientUploadId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "image",
+      "type": "object",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

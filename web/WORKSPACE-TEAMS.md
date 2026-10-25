@@ -75,7 +75,7 @@ used to recognize theChair's own source tree for its demo-file exclusions.
 
 ## Verification
 
-Root suite: 36 tests. Web suite: 24 tests, including PostgreSQL isolation,
+Root suite: 36 tests. Web suite: 27 tests, including PostgreSQL isolation,
 concurrent server contexts, AI context/proposal isolation and credential controls.
 Root and web TypeScript checks pass, including the evidence assertion in
 `engine/diff.test.ts:68` that Carter explicitly authorized fixing. The production
@@ -118,3 +118,8 @@ backend returns userId and token on port 4000. Repository connection/publishing
 and an actual GitHub push remain pending a repository administrator's setup;
 Test67 had no connection at verification time. Browser automation exposed no
 available browser, so visual theme/mobile checks remain manual.
+
+Private image attachments are available in both workspace and team chats. See
+[chat image setup and verification](CHAT-IMAGES.md) for the applied migration,
+limits, privacy rules and the disposable live check. Images are for teammate
+viewing; AI image analysis is not part of this feature.

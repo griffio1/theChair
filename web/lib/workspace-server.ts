@@ -153,6 +153,7 @@ const message = (r: Row): WorkspaceMessage => ({
   workspaceId: r.workspace_id,
   author: { userId: r.author_id, name: r.author_name, type: "human" },
   body: r.body,
+  images: r.images ?? [],
   createdAt: r.created_at,
 });
 const invitation = (r: Row): WorkspaceInvitation => ({
@@ -356,7 +357,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     if (req.method === "GET") {
       const { data, error } = await db
         .from("chair_messages")
-        .select("id,workspace_id,chat_id,author_id,author_name,body,created_at")
+        .select("id,workspace_id,chat_id,author_id,author_name,body,images,created_at")
         .eq("workspace_id", workspaceId)
         .eq("chat_id", chatId)
         .order("created_at", { ascending: false })
@@ -367,14 +368,14 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     }
     if (req.method === "POST") {
       const body = await readBody(req);
+      const { imageMessageInput } = await import("./chat-images");
+      const input = imageMessageInput(body);
       const { data, error } = await db
-        .rpc("chair_send_message", {
+        .rpc("chair_send_images", {
           p_workspace: workspaceId,
           p_chat: chatId,
-          p_body: textField(body, "body", 10000),
-          p_client_id: validId(textField(body, "clientMessageId", 36)),
-        })
-        .single<Row>();
+          ...input,
+        });
       check(error);
       if (!data)
         throw new WorkspaceError(

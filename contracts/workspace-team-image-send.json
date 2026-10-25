@@ -1,0 +1,33 @@
+{
+  "id": "workspace-team-image-send",
+  "name": "Send image attachments to team chat",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/team/images",
+  "request": [
+    {
+      "name": "body",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "clientMessageId",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "imageIds",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "messages",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

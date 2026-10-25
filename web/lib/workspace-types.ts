@@ -31,7 +31,16 @@ export interface WorkspaceMessage {
   workspaceId: string;
   author: { userId: string; name: string; type: "human" };
   body: string;
+  images?: ChatImage[];
   createdAt: string;
+}
+export interface ChatImage {
+  id: string;
+  name: string;
+  mimeType: string;
+  width: number;
+  height: number;
+  size: number;
 }
 export interface WorkspaceDetail {
   workspace: Workspace;

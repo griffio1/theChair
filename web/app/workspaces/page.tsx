@@ -10,17 +10,19 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
 import { AppearancePicker } from "../../components/appearance-picker";
+import { ChatImages, ImagePicker } from "../../components/chat-images";
 import type {
   Workspace,
   WorkspaceChat,
   WorkspaceDetail,
   WorkspaceInvitation,
   WorkspaceMessage,
+  ChatImage,
 } from "../../lib/workspace-types";
 import "./workspaces.css";
 
 type View = "home" | "chat" | "people" | "contracts" | "conflicts";
-type Draft = { body: string; clientMessageId: string };
+type Draft = { body: string; clientMessageId: string; images?: ChatImage[] };
 type Modal = "workspace" | "chat" | "invite" | "share";
 
 async function api<T>(
@@ -182,6 +184,7 @@ export default function Workspaces() {
     items: WorkspaceMessage[];
   }>({ scope: "", items: [] });
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [uploadScope, setUploadScope] = useState("");
   const [view, setView] = useState<View>("home");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -211,6 +214,9 @@ export default function Workspaces() {
   const scope = `${activeSpace}/${activeChat}`;
   const visibleMessages = history.scope === scope ? history.items : [];
   const draft = drafts[scope]?.body ?? "";
+  const draftImages = drafts[scope]?.images ?? [];
+  const uploading = uploadScope === scope;
+  useEffect(() => { setUploadScope(""); }, [scope, userId]);
   const me =
     session?.user.user_metadata?.displayName ||
     session?.user.email?.split("@")[0] ||
@@ -478,7 +484,7 @@ export default function Workspaces() {
   }
   async function send() {
     const item = drafts[scope];
-    if (!item?.body.trim() || busy || !chat) return;
+    if (!item || (!item.body.trim() && !item.images?.length) || busy || uploading || !chat) return;
     const actor = userId;
     const key = scope;
     setBusy(true);
@@ -486,7 +492,7 @@ export default function Workspaces() {
     try {
       const result = await api<{ messages: WorkspaceMessage[] }>(
         `/api/workspaces/${activeSpace}/chats/${activeChat}/messages`,
-        item,
+        { body: item.body, clientMessageId: item.clientMessageId, imageIds: item.images?.map(image => image.id) ?? [] },
       );
       if (actor !== userRef.current) return;
       mergeMessages(key, result.messages);
@@ -559,7 +565,7 @@ export default function Workspaces() {
   function updateDraft(body: string) {
     setDrafts((items) => ({
       ...items,
-      [scope]: { body, clientMessageId: crypto.randomUUID() },
+      [scope]: { ...items[scope], body, clientMessageId: crypto.randomUUID() },
     }));
   }
 
@@ -1136,6 +1142,7 @@ export default function Workspaces() {
                                 </small>
                               </div>
                               <p>{m.body}</p>
+                              <ChatImages workspaceId={activeSpace} images={m.images} />
                             </div>
                           </article>
                         ))
@@ -1174,7 +1181,7 @@ export default function Workspaces() {
                         placeholder="Share a plan. Start a conversation."
                         rows={3}
                         maxLength={10000}
-                        disabled={!chat}
+                        disabled={!chat || busy}
                         value={draft}
                         onChange={(e) => updateDraft(e.target.value)}
                         onKeyDown={(e) => {
@@ -1188,12 +1195,19 @@ export default function Workspaces() {
                           }
                         }}
                       />
+                      <ImagePicker key={`${userId}/${scope}`} workspaceId={activeSpace} images={draftImages}
+                        disabled={busy || !chat}
+                        onBusy={value => setUploadScope(value ? scope : "")}
+                        onChange={images => {
+                          if (userId !== userRef.current) return;
+                          setDrafts(items => ({ ...items, [scope]: { body: items[scope]?.body ?? "", images, clientMessageId: crypto.randomUUID() } }));
+                        }} />
                       <div>
                         <span>Shared with workspace members</span>
                         <button
                           className="wp-primary"
                           type="submit"
-                          disabled={busy || !chat || !draft.trim()}
+                          disabled={busy || uploading || !chat || (!draft.trim() && !draftImages.length)}
                         >
                           {busy ? "Sending…" : "Send message ↑"}
                         </button>

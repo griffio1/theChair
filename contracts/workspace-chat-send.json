@@ -1,6 +1,6 @@
 {
   "id": "workspace-chat-send",
-  "name": "Send a workspace message",
+  "name": "Send a workspace message with optional images",
   "method": "POST",
   "path": "/api/workspaces/:workspaceId/chats/:chatId/messages",
   "request": [
@@ -13,6 +13,11 @@
       "name": "clientMessageId",
       "type": "string",
       "required": true
+    },
+    {
+      "name": "imageIds",
+      "type": "array",
+      "required": false
     }
   ],
   "response": [
@@ -22,7 +27,7 @@
       "required": true
     }
   ],
-  "version": 1,
+  "version": 2,
   "status": "approved",
   "owner": "carter"
 }

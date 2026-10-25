@@ -1,0 +1,11 @@
+{
+  "id": "workspace-image-read",
+  "name": "View a private chat image",
+  "method": "GET",
+  "path": "/api/workspaces/:workspaceId/images/:imageId",
+  "request": [],
+  "response": [],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import WorkspaceConnections from "./workspace-connections";
 import { AppearancePicker } from "../components/appearance-picker";
+import { ChatImages, ImagePicker } from "./chat-images";
+import type { ChatImage } from "../lib/workspace-types";
 
 type Row = Record<string, any>;
 type View = "chat" | "conflicts" | "contracts";
@@ -144,6 +146,9 @@ export default function TeamDashboard({
   const [conflicts, setConflicts] = useState<Record<string, Row>>({});
   const [contracts, setContracts] = useState<Row[]>([]);
   const [draft, setDraft] = useState("");
+  const [draftImages, setDraftImages] = useState<ChatImage[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const imageMessageId = useRef("");
   const me = name;
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
@@ -265,21 +270,26 @@ export default function TeamDashboard({
   }, [messages.length, view]);
 
   async function send() {
-    if (!draft.trim() || busy) return;
+    if ((!draft.trim() && !draftImages.length) || busy || uploading) return;
     setBusy(true);
     setError("");
     const body = draft;
-    setDraft("");
     try {
-      const response = await fetch("/api/chat", {
+      if (!imageMessageId.current) imageMessageId.current = crypto.randomUUID();
+      const response = await fetch(draftImages.length ? `/api/workspaces/${workspaceId}/team/images` : "/api/chat", {
         method: "POST",
         headers: await authHeaders(),
-        body: JSON.stringify({ author: me, body }),
+        body: JSON.stringify(draftImages.length
+          ? { body, clientMessageId: imageMessageId.current, imageIds: draftImages.map(image => image.id) }
+          : { author: me, body }),
       });
-      if (!response.ok) throw new Error("Send failed");
-    } catch {
-      setDraft((current) => current || body);
-      setError("Your message couldn’t be sent. Please try again.");
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.error || "Your message couldn’t be sent. Please try again.");
+      }
+      setDraft(""); setDraftImages([]); imageMessageId.current = "";
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Your message couldn’t be sent. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -473,6 +483,7 @@ export default function TeamDashboard({
             {system && <span className="ai-label">System</span>}
           </div>
           <div className="message-body">{m.body}</div>
+          <ChatImages workspaceId={workspaceId} images={m.images} />
         </div>
       </article>
     );
@@ -752,7 +763,9 @@ export default function TeamDashboard({
                           aria-label="Message the team"
                           placeholder="Share a plan. Ask a question. Make an agreement."
                           value={draft}
-                          onChange={(e) => setDraft(e.target.value)}
+                          disabled={busy}
+                          maxLength={10000}
+                          onChange={(e) => { setDraft(e.target.value); imageMessageId.current = ""; }}
                           onKeyDown={(e) => {
                             if (
                               e.key === "Enter" &&
@@ -765,12 +778,14 @@ export default function TeamDashboard({
                           }}
                           rows={2}
                         />
+                        <ImagePicker workspaceId={workspaceId} images={draftImages} disabled={busy} onBusy={setUploading}
+                          onChange={images => { setDraftImages(images); imageMessageId.current = ""; }} />
                         <div className="composer-bottom">
-                          <span>Visible to your team & agents</span>
+                          <span>{draftImages.length ? "Shared with teammates · images aren’t analyzed by AI" : "Visible to your team & agents"}</span>
                           <button
                             className="send-button"
                             type="submit"
-                            disabled={busy || !draft.trim()}
+                            disabled={busy || uploading || (!draft.trim() && !draftImages.length)}
                             aria-label={
                               busy ? "Sending message" : "Send message"
                             }
