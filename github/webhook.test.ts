@@ -6,9 +6,10 @@ import { readFileSync } from "node:fs";
 import { test, type TestContext } from "node:test";
 import { inWorkspace } from "../server/workspace-context";
 import { handlePush as push, verifySignature } from "./webhook";
+import { extractDeterministic } from "../analyzer/deterministic";
 
 const team = "10000000-0000-4000-8000-000000000001";
-const handlePush: typeof push = (p) => inWorkspace(team, () => push(p));
+const handlePush: typeof push = (p, options) => inWorkspace(team, () => push(p, options));
 type Row = Record<string, unknown>;
 
 const contract = JSON.parse(
@@ -74,6 +75,7 @@ function fixture(
   const requests: { method: string; url: URL }[] = [];
   const reads: string[] = [];
   const failures = new Map<string, number>();
+  const models = { calls:0 };
   let nextId = 0;
   const json = (value: unknown) =>
     new Response(JSON.stringify(value), {
@@ -88,6 +90,12 @@ function fixture(
       const url = new URL(input instanceof Request ? input.url : String(input));
       const method = init?.method ?? "GET";
       requests.push({ method, url });
+      if (url.origin === "https://generativelanguage.googleapis.com") {
+        models.calls++;
+        return json({candidates:[{finishReason:"STOP",content:{parts:[{
+          text:JSON.stringify({shapes:extractDeterministic("fixture.tsx",text)}),
+        }]}}]});
+      }
       if (url.origin === "https://ledger.invalid") {
         const name = url.pathname.split("/").pop()!;
         assert.ok(Object.hasOwn(tables, name), `Unexpected table: ${name}`);
@@ -143,6 +151,8 @@ function fixture(
           "GET",
           "A push check must not write repository files",
         );
+        if (url.pathname.startsWith("/repos/test/thechair/git/commits/")) return json({ tree: { sha: "tree" } });
+        if (url.pathname.startsWith("/repos/test/thechair/git/trees/")) return json({ truncated: false, tree: paths.map((path) => ({ path, type: "blob" })) });
         if (url.pathname.startsWith("/repos/test/thechair/compare/")) {
           return json({
             files: paths.map((filename) => ({ filename, status: "modified" })),
@@ -155,6 +165,11 @@ function fixture(
         );
         const file = decodeURIComponent(url.pathname.slice(prefix.length));
         reads.push(file);
+        const readFailure = failures.get(`file:${file}`);
+        if (readFailure) {
+          failures.delete(`file:${file}`);
+          return new Response("", { status: readFailure });
+        }
         assert.equal(
           url.searchParams.get("ref"),
           payload.after,
@@ -173,6 +188,7 @@ function fixture(
     tables,
     requests,
     reads,
+    models,
     failNext: (table: string, status: number) => failures.set(table, status),
   };
 }
@@ -209,17 +225,18 @@ test("a pushed mismatch creates one blocking conflict and its dashboard card", a
   assert.match(String(tables.messages[0].body), /user_id.*userId/);
 });
 
-test("a compliant pushed consumer produces an all-clear message without conflicts", async (t) => {
+test("a compliant pushed consumer reports the detected API coverage without conflicts", async (t) => {
   const { tables } = fixture(t, healthy);
   assert.deepEqual(await handlePush(payload), []);
   assert.equal(tables.conflicts.length, 0);
   assert.equal(tables.messages.length, 1);
   assert.equal(tables.messages[0].kind, "event");
-  assert.match(String(tables.messages[0].body), /All clear/);
+  assert.match(String(tables.messages[0].body), /Checked 1 API\(s\) in 1 file\(s\)/);
+  assert.match(String(tables.messages[0].body), /No mismatches found in the detected API code/);
 });
 
-test("generated contract commits do not trigger analysis or announcements", async (t) => {
-  const { requests } = fixture(t);
+test("generated contract files do not trigger source analysis or announcements", async (t) => {
+  const { reads, tables } = fixture(t, healthy, ["contracts/auth-login.json", "AGENTS.md"]);
   for (const message of [
     "AGENTS.md: sync contracts",
     "contracts: auth-login v1",
@@ -229,7 +246,45 @@ test("generated contract commits do not trigger analysis or announcements", asyn
       [],
     );
   }
-  assert.equal(requests.length, 0);
+  assert.deepEqual(reads, []);
+  assert.equal(tables.conflicts.length, 0);
+  assert.equal(tables.messages.length, 0);
+});
+
+test("a sync-looking commit title cannot bypass checks of changed application code", async (t) => {
+  fixture(t);
+  for (const message of ["contracts: fix login", "AGENTS.md: sync contracts and change login"]) {
+    const conflicts = await handlePush({ ...payload, head_commit: { message } });
+    assert.equal(conflicts.length, 1);
+    assert.equal(conflicts[0].kind, "field_mismatch");
+  }
+});
+
+test("an unsupported source file reports missing coverage instead of a clean result", async (t) => {
+  const { tables } = fixture(t, "export const request = apiClient.login({ email, password });");
+  assert.deepEqual(await handlePush(payload), []);
+  assert.equal(tables.messages.length, 1);
+  assert.match(String(tables.messages[0].body), /No API code recognized/);
+  assert.doesNotMatch(String(tables.messages[0].body), /All clear|No mismatches/);
+});
+
+test("an unreadable changed file cannot produce a clean result and can be retried", async (t) => {
+  const { tables, failNext } = fixture(t, healthy);
+  failNext("file:demo/web/Login.tsx", 404);
+  await assert.rejects(handlePush(payload), /source file could not be read/);
+  assert.equal(tables.messages.length, 0);
+  await handlePush(payload);
+  assert.equal(tables.events.length, 1);
+  assert.equal(tables.messages.length, 1);
+});
+
+test("a new branch checks the complete recursive snapshot at its head commit", async (t) => {
+  const { requests } = fixture(t);
+  const conflicts = await handlePush({ ...payload, before: "0".repeat(40) });
+  assert.equal(conflicts[0].kind, "field_mismatch");
+  assert.ok(requests.some((request) => request.url.pathname === `/repos/test/thechair/git/commits/${payload.after}`));
+  assert.ok(requests.some((request) => request.url.pathname === "/repos/test/thechair/git/trees/tree" && request.url.searchParams.get("recursive") === "1"));
+  assert.ok(!requests.some((request) => request.url.pathname.includes("/compare/")));
 });
 
 test("non-code files, generated files and tests are excluded from analysis", async (t) => {
@@ -253,7 +308,7 @@ test("non-code files, generated files and tests are excluded from analysis", asy
   ]);
   await handlePush(payload);
   assert.deepEqual(reads, ["demo/web/Login.tsx"]);
-  assert.match(String(tables.messages[0].body), /Checked 1 file/);
+  assert.match(String(tables.messages[0].body), /Checked 1 API\(s\) in 1 file/);
 });
 
 test("webhook signatures reject missing, modified and malformed signatures", (t) => {
@@ -358,4 +413,38 @@ test("connected projects analyze web and server source outside theChair's own re
   environment(t, { GITHUB_REPO: "different/thechair-source" });
   const conflicts = await handlePush(payload);
   assert.ok(conflicts.some((c) => c.kind === "field_mismatch"));
+});
+
+test("a queued push beyond one extraction quota window resumes without charging saved files again",async(t) => {
+  const paths = Array.from({length:61},(_,index) => `demo/consumer-${index}.tsx`);
+  const {tables,models} = fixture(t,broken,paths);
+  environment(t,{EXTRACTOR:"auto",GEMINI_API_KEY:"test-model-key",GEMINI_MODEL:"test-model"});
+  let used = 0, charged = 0;
+  const quota = new Error("Test quota window exhausted");
+  const beforeExtract = async() => {
+    if (used >= 60) throw quota;
+    used++; charged++;
+  };
+  await assert.rejects(handlePush(payload,{beforeExtract}),error => error === quota);
+  assert.equal(tables.extraction_cache.length,60);
+  assert.equal(tables.messages.length,0,"An unfinished push does not announce a clean result");
+  used = 0;
+  const result = await handlePush(payload,{beforeExtract});
+  assert.equal(result.length,61);
+  assert.equal(charged,61,"Only the final uncached file uses the new quota window");
+  assert.equal(models.calls,61);
+  assert.equal(tables.extraction_cache.length,61);
+  assert.equal(tables.events.length,1);
+});
+
+test("queued local extraction never calls the model budget and cache write failure stops before the next file",async(t) => {
+  const {tables,reads,failNext} = fixture(t,healthy,["demo/one.tsx","demo/two.tsx"]);
+  const beforeExtract = async() => { assert.fail("Local extraction must not reserve model budget"); };
+  failNext("extraction_cache",503);
+  await assert.rejects(handlePush(payload,{beforeExtract}),/extraction_cache -> 503/);
+  assert.deepEqual(reads,["demo/one.tsx"]);
+  assert.equal(tables.messages.length,0);
+  await handlePush(payload,{beforeExtract});
+  assert.equal(tables.messages.length,1);
+  assert.equal(tables.extraction_cache.length,2);
 });

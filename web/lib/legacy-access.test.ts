@@ -65,6 +65,7 @@ test("agent credentials must be active, scoped to their workspace, and issued by
     workspaceId: "team",
     name: "carter",
     role: "agent",
+    budgetActorId: "owner",
   });
   active = false;
   await assert.rejects(

@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { ApprovalError } from "../../server/approve";
+import { ProposalInputError } from "../../server/propose";
 import {
   authenticate,
   readBody,
@@ -104,4 +106,12 @@ test("response errors hide backend details and forbid shared caching", async () 
   });
   assert.equal(denied.status, 403);
   assert.deepEqual(await denied.json(), { error: "Denied" });
+  for (const status of [409,404,503]) {
+    const approval = await respond(async () => { throw new ApprovalError(status,"Approval needs review."); });
+    assert.equal(approval.status,status);
+    assert.deepEqual(await approval.json(),{error:"Approval needs review."});
+  }
+  const proposal = await respond(async () => { throw new ProposalInputError("Check the agreement fields."); });
+  assert.equal(proposal.status,400);
+  assert.deepEqual(await proposal.json(),{error:"Check the agreement fields."});
 });

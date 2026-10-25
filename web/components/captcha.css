@@ -1,0 +1,8 @@
+.chair-captcha { min-width: 0; margin: 18px 0; }
+.chair-captcha-widget { width: 100%; min-height: 65px; }
+.chair-captcha-widget.compact { min-height: 140px; }
+.chair-captcha p { margin: 8px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.chair-captcha p[role="alert"] { color: var(--ink); }
+.chair-captcha button { min-height: 44px; padding: 8px 0; border: 0; background: transparent; color: var(--blue); text-decoration: underline; text-underline-offset: 4px; font-size: 12px; }
+.chair-captcha button:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+.chair-captcha button:disabled { opacity: .6; cursor: wait; }

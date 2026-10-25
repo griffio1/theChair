@@ -1,0 +1,33 @@
+name: Retry saved code checks
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: retry-code-checks
+  cancel-in-progress: false
+jobs:
+  retry:
+    if: vars.THECHAIR_JOB_RUNNER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Process the next saved check
+        env:
+          JOB_URL: ${{ vars.THECHAIR_JOB_URL }}
+          JOB_SECRET: ${{ secrets.THECHAIR_JOB_SECRET }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const url = process.env.JOB_URL;
+          const secret = process.env.JOB_SECRET;
+          if (!url?.startsWith('https://') || !secret || secret.length < 32) throw new Error('Configure the private job runner URL and secret.');
+          const response = await fetch(url, { headers: { authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(290000), redirect: 'error' });
+          if (!response.ok) throw new Error(`Job runner returned ${response.status}.`);
+          const result = await response.json();
+          if (typeof result.processed !== 'number' || typeof result.failed !== 'number') throw new Error('Unexpected job result.');
+          console.log(`Processed: ${result.processed}; failed: ${result.failed}`);
+          if (result.failed) throw new Error('A saved code check failed. Inspect private job status.');
+          NODE

@@ -7,6 +7,7 @@ import {
   textField,
   validId,
   WorkspaceError,
+  usageLimit,
 } from "./workspace-server";
 
 export function adminDatabase() {
@@ -26,8 +27,9 @@ export function adminDatabase() {
     },
   });
 }
-function checked(error: { code?: string } | null) {
+function checked(error: { code?: string; message?: string } | null) {
   if (!error) return;
+  usageLimit(error);
   if (error.code === "23505")
     throw new WorkspaceError(
       409,
@@ -102,21 +104,34 @@ export async function integrationsRequest(
         400,
         "Use at least 32 characters for the shared secret.",
       );
-    const response = await fetch(`https://api.github.com/repos/${name}`, {
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: "application/vnd.github+json",
-        "x-github-api-version": "2022-11-28",
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(12000),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`https://api.github.com/repos/${name}`, {
+        headers: {
+          authorization: `Bearer ${token}`,
+          accept: "application/vnd.github+json",
+          "x-github-api-version": "2022-11-28",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(12000),
+      });
+    } catch {
+      throw new WorkspaceError(503, "GitHub isn't available. Try again.");
+    }
+    if (response.status === 429 || response.status === 408 || response.status >= 500 ||
+      (response.status === 403 && (response.headers.get("x-ratelimit-remaining") === "0" || response.headers.has("retry-after"))))
+      throw new WorkspaceError(503, "GitHub is busy. Wait a moment and try again.");
     if (!response.ok)
       throw new WorkspaceError(
         400,
         "Check the GitHub project name and access token.",
       );
-    const info = await response.json();
+    let info;
+    try { info = await response.json(); }
+    catch { throw new WorkspaceError(503, "GitHub isn't available. Try again."); }
+    if (!info || !Number.isSafeInteger(info.id) || typeof info.full_name !== "string" ||
+      !/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(info.full_name))
+      throw new WorkspaceError(503, "GitHub isn't available. Try again.");
     if (
       !info.permissions?.admin ||
       !info.permissions?.push ||

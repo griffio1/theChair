@@ -7,6 +7,7 @@ export interface TeamIdentity {
   name: string;
   role: "owner" | "member" | "agent";
   userId?: string;
+  budgetActorId: string;
 }
 
 function unavailable(error: unknown) {
@@ -74,6 +75,7 @@ export async function requireTeam(
       workspaceId: agent.workspace_id,
       name: agent.label,
       role: "agent",
+      budgetActorId: agent.issued_by,
     };
   }
   const ctx = await authenticate(req);
@@ -107,5 +109,6 @@ export async function requireTeam(
     userId: ctx.userId,
     name: member.data.display_name,
     role: member.data.role,
+    budgetActorId: ctx.userId,
   };
 }

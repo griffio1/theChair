@@ -1,8 +1,9 @@
-// Shape extractor (M8). Gemini with a JSON schema, cached by commit SHA.
+// Shape extractor (M8). Gemini with a JSON schema and versioned source cache.
 // Auto mode falls back after 8 seconds; explicit Gemini checks allow 30 seconds.
 // EXTRACTOR=auto (default) | gemini | deterministic
 
 import type { ExtractedShape } from "../shared/types";
+import { createHash } from "node:crypto";
 import { extractDeterministic } from "./deterministic";
 import { select, upsert } from "../server/db";
 
@@ -45,6 +46,8 @@ const SCHEMA = {
   required: ["shapes"],
 };
 
+// Bump when the prompt, schema, validation or local extractor semantics change.
+const PROMPT_VERSION = "http-shapes-v2";
 const PROMPT = `You extract HTTP API shapes from one source file.
 - A "producer" defines an endpoint (e.g. an Express/Next.js handler). requestFields = fields it reads from the JSON body; responseFields = fields it returns in JSON.
 - A "consumer" calls an endpoint (e.g. fetch/axios). requestFields = fields it sends; responseFields = fields it reads from the JSON response.
@@ -78,10 +81,9 @@ function validatedShapes(value: unknown, file: string): ExtractedShape[] {
   return (value as Omit<ExtractedShape, "file">[]).map((shape) => ({ ...shape, file }));
 }
 
-async function gemini(file: string, text: string, timeoutMs: number): Promise<ExtractedShape[]> {
+async function gemini(file: string, text: string, timeoutMs: number, model: string): Promise<ExtractedShape[]> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY not set");
-  const model = process.env.GEMINI_MODEL ?? "gemini-flash-latest";
   const numbered = text
     .split("\n")
     .map((l, i) => `${i + 1}: ${l}`)
@@ -107,10 +109,17 @@ async function gemini(file: string, text: string, timeoutMs: number): Promise<Ex
         }),
       },
     );
-    if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const data = (await res.json()) as {
+    // Provider bodies can echo source text or credentials. Keep diagnostics bounded
+    // to status codes and schema failures, including the explicit check script.
+    if (!res.ok) throw new Error(`Gemini request failed (HTTP ${res.status})`);
+    let data: {
       candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[];
     };
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error("Gemini returned an invalid response");
+    }
     const candidate = data.candidates?.[0];
     if (candidate?.finishReason && candidate.finishReason !== "STOP") {
       throw new Error("Gemini did not complete the extraction");
@@ -119,7 +128,12 @@ async function gemini(file: string, text: string, timeoutMs: number): Promise<Ex
       ?.filter((part) => !part.thought && typeof part.text === "string")
       .map((part) => part.text).join("");
     if (!raw?.trim()) throw new Error("Gemini returned no extraction text");
-    const parsed: unknown = JSON.parse(raw);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new Error("Gemini returned invalid extraction JSON");
+    }
     return validatedShapes(record(parsed) ? parsed.shapes : undefined, file);
   } finally {
     clearTimeout(timer);
@@ -131,37 +145,56 @@ export interface ExtractResult {
   source: "cache" | "gemini" | "deterministic";
 }
 
-export async function extractShapes(file: string, text: string, sha?: string): Promise<ExtractResult> {
-  if (sha) {
+export interface ExtractOptions {
+  /** Reserve model usage only for a cache miss that will make a provider request. */
+  beforeModel?: () => Promise<void>;
+  /** Queued checks must save each file before moving on so retries retain progress. */
+  requireCache?: boolean;
+}
+
+export async function extractShapes(file: string, text: string, sha?: string, options: ExtractOptions = {}): Promise<ExtractResult> {
+  if (options.requireCache && !sha) throw new Error("A source revision is required for durable extraction.");
+  const mode = process.env.EXTRACTOR ?? "auto";
+  const model = process.env.GEMINI_MODEL ?? "gemini-flash-latest";
+  // extraction_cache.sha is text. Keep its existing schema while separating old
+  // commit-only rows and incompatible source, mode, model or prompt versions.
+  const cacheKey = sha ? `extract-v2:${createHash("sha256").update(JSON.stringify([
+    sha,file,createHash("sha256").update(text).digest("hex"),mode,model,PROMPT_VERSION,
+  ])).digest("hex")}` : undefined;
+  if (cacheKey) {
     try {
       const [hit] = await select<{ shapes: ExtractedShape[] }>(
         "extraction_cache",
-        `sha=eq.${sha}&file=eq.${encodeURIComponent(file)}`,
+        `sha=eq.${cacheKey}&file=eq.${encodeURIComponent(file)}`,
       );
       if (hit) return { shapes: validatedShapes(hit.shapes, file), source: "cache" };
-    } catch {
+    } catch (error) {
+      if (options.requireCache) throw error;
       /* cache is best-effort */
     }
   }
 
-  const mode = process.env.EXTRACTOR ?? "auto";
   let result: ExtractResult;
   if (mode === "deterministic") {
     result = { shapes: extractDeterministic(file, text), source: "deterministic" };
   } else {
+    // Quota/authentication failures are not model failures. They must propagate,
+    // including in auto mode, rather than bypassing limits via local fallback.
+    if (process.env.GEMINI_API_KEY) await options.beforeModel?.();
     try {
-      result = { shapes: await gemini(file, text, mode === "gemini" ? 30000 : 8000), source: "gemini" };
+      result = { shapes: await gemini(file, text, mode === "gemini" ? 30000 : 8000, model), source: "gemini" };
     } catch (e) {
       if (mode === "gemini") throw e;
-      console.warn(`[extract] Gemini failed for ${file}, using deterministic: ${(e as Error).message}`);
+      console.warn("[extract] Gemini extraction failed; using the limited local extractor.");
       result = { shapes: extractDeterministic(file, text), source: "deterministic" };
     }
   }
 
-  if (sha) {
+  if (cacheKey) {
     try {
-      await upsert("extraction_cache", { sha, file, shapes: result.shapes });
-    } catch {
+      await upsert("extraction_cache", { sha:cacheKey, file, shapes: result.shapes });
+    } catch (error) {
+      if (options.requireCache) throw error;
       /* best-effort */
     }
   }

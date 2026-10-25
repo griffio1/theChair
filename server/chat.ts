@@ -124,12 +124,12 @@ export async function handleChat(req: ChatRequest): Promise<Message[]> {
         refId: `${contract.id}@${contract.version}`,
         createdAt: new Date().toISOString(),
       });
-    } catch (e) {
+    } catch {
       created.push(
         await postMessage({
           author: { type: "system", name: "theChair" },
           kind: "text",
-          body: `Couldn't create that proposal: ${(e as Error).message}`,
+          body: "Couldn't create that agreement. Try again.",
         }),
       );
     }

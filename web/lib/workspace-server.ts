@@ -1,5 +1,7 @@
 import { shareUrl } from "./site-url";
 import { RepositoryNotConnectedError } from "../../server/github";
+import { ApprovalError } from "../../server/approve";
+import { ProposalInputError } from "../../server/propose";
 import { createHash, randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type {
@@ -78,8 +80,13 @@ export async function readBody(req: Request): Promise<Row> {
   }
 }
 
-function check(error: { code?: string } | null) {
+export function usageLimit(error: { code?: string; message?: string } | null) {
+  if (error?.code === "PT429")
+    throw new WorkspaceError(429, error.message || "Usage limit reached. Try again later.");
+}
+function check(error: { code?: string; message?: string } | null) {
   if (!error) return;
+  usageLimit(error);
   if (["42P01", "PGRST202", "PGRST205"].includes(error.code ?? ""))
     throw new WorkspaceError(
       503,
@@ -88,7 +95,9 @@ function check(error: { code?: string } | null) {
   if (error.code === "42501")
     throw new WorkspaceError(
       403,
-      "You don't have access to this action or invite.",
+      error.message === "Confirm your email before creating a workspace."
+        ? error.message
+        : "You don't have access to this action or invite.",
     );
   if (error.code === "22023")
     throw new WorkspaceError(
@@ -446,7 +455,7 @@ export async function respond(run: () => Promise<unknown>): Promise<Response> {
     const known =
       error instanceof RepositoryNotConnectedError
         ? new WorkspaceError(409, "Connect a GitHub project before continuing.")
-        : error instanceof WorkspaceError
+        : error instanceof WorkspaceError || error instanceof ApprovalError || error instanceof ProposalInputError
           ? error
           : null;
     return Response.json(

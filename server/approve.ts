@@ -1,87 +1,116 @@
-// M9: approving a conflict fix or a proposed contract bumps the ledger and commits
-// contracts/<id>.json + AGENTS.md so every agent reads the new truth.
-
+import { randomUUID } from "node:crypto";
 import type { Contract } from "../shared/types";
 import { updateAgentsMd } from "../engine/agentsmd";
-import {
-  getConflict,
-  getContract,
-  getContracts,
-  logEvent,
-  postMessage,
-  setConflictStatus,
-  setContractStatus,
-} from "./ledger";
-import { readFile, writeFile } from "./github";
+import { getContracts } from "./ledger";
+import { publishFilesAtomically, readFile } from "./github";
+import { currentWorkspace } from "./workspace-context";
 
-async function publish(
-  contract: Contract,
-  approvedBy: string,
-): Promise<string> {
-  const all = (await getContracts()).filter((c) => c.id !== contract.id);
-  all.push(contract);
-  const json = JSON.stringify(contract, null, 2) + "\n";
-  await writeFile(
-    `contracts/${contract.id}.json`,
-    json,
-    `contracts: ${contract.id} v${contract.version} (approved by ${approvedBy})`,
-  );
-  const agents = (await readFile("AGENTS.md"))?.text ?? "# AGENTS.md\n";
-  const sha = await writeFile(
-    "AGENTS.md",
-    updateAgentsMd(agents, all),
-    `AGENTS.md: sync contracts after ${contract.id} v${contract.version}`,
-  );
-  await logEvent({
-    type: "approval",
-    summary: `${approvedBy} approved ${contract.id} v${contract.version}`,
-    sha,
-  });
-  await postMessage({
-    author: { type: "system", name: "theChair" },
-    kind: "event",
-    body: `Approved ${contract.id} v${contract.version}. AGENTS.md updated; agents get it on their next \`get_contracts\` call or pull.`,
-    refId: contract.id,
-  });
-  return sha;
+export class ApprovalError extends Error {
+  constructor(public readonly status: number, message: string) { super(message); }
 }
 
-/** Approve a proposed contract version. Supersedes the previous approved version. */
-export async function approveContract(
-  id: string,
-  version: number,
-  approvedBy: string,
-) {
-  const proposed = await getContract(id, version);
-  if (!proposed) throw new Error(`No contract ${id} v${version}`);
-  const contract = { ...proposed, status: "approved" as const };
-  const commitSha = await publish(contract, approvedBy);
-  const prev = (await getContracts()).find((c) => c.id === id);
-  if (prev && prev.version !== version)
-    await setContractStatus(id, prev.version, "superseded");
-  await setContractStatus(id, version, "approved");
-  return { contract, commitSha };
+interface ApprovalJob {
+  operation_key: string;
+  status: "pending" | "complete" | "cancelled";
+  contract: Contract | null;
+  approved_by: string;
+  branch: string | null;
+  base_sha: string | null;
+  candidate_sha: string | null;
+  commit_sha: string | null;
 }
 
-/**
- * Approve a conflict's suggested fix. The fix is "make the code match the contract",
- * so the contract doesn't change; we close the conflict and re-publish so AGENTS.md is fresh.
- * If the team wants the contract to change instead, they propose it in the main chat.
- */
+async function approvalRpc<T = ApprovalJob>(name: string, params: Record<string, unknown>): Promise<T> {
+  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_KEY;
+  if (!url || !key) throw new ApprovalError(503, "Approval storage is unavailable.");
+  let response: Response;
+  try {
+    response = await fetch(`${url}/rest/v1/rpc/${name}`, {
+      method: "POST", cache: "no-store", signal: AbortSignal.timeout(15000),
+      headers: { apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ p_workspace: currentWorkspace(), ...params }),
+    });
+  } catch {
+    throw new ApprovalError(503, "Approval storage did not respond. Retry this approval.");
+  }
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (["42P01", "42883", "PGRST202"].includes(body?.code))
+      throw new ApprovalError(503, "Approval setup is missing. Run approval-publishing.sql.");
+    if (body?.code === "55P03") throw new ApprovalError(409,
+      body?.message === "Finish the pending approval before approving another change"
+        ? "Finish the pending approval before approving another change."
+        : "Approval is running. Retry shortly.");
+    if (body?.code === "40001") throw new ApprovalError(409, "The agreement or saved publication changed. Review this approval before retrying.");
+    if (body?.code === "P0002") throw new ApprovalError(404, "Agreement or issue unavailable.");
+    if (body?.code === "22023") throw new ApprovalError(400, "Invalid approval.");
+    throw new ApprovalError(503, "Approval could not be saved. Retry this approval.");
+  }
+  if (body === null && name !== "chair_release_approval")
+    throw new ApprovalError(503, "Approval result was not confirmed. Retry this approval.");
+  return body as T;
+}
+
+async function approve(kind: "contract" | "conflict", id: string, version: number | null, approvedBy: string) {
+  const lease = randomUUID();
+  let job = await approvalRpc("chair_take_approval", {
+    p_kind: kind, p_id: id, p_version: version, p_approved_by: approvedBy, p_lease: lease,
+  });
+  if (job.status === "complete") return job;
+  const fence = { p_key: job.operation_key, p_lease: lease };
+  try {
+    const contract = job.contract;
+    const commitSha = contract ? await publishFilesAtomically({
+      message: `contracts: ${contract.id} v${contract.version} (approved by ${job.approved_by})`,
+      pending: job.branch && job.base_sha && job.candidate_sha
+        ? { branch: job.branch, baseSha: job.base_sha, sha: job.candidate_sha } : undefined,
+      files: async (head, signal) => {
+        // Re-read on every ref retry. Preserve unrelated AGENTS.md edits and
+        // refuse to replace an agreement already newer in either store.
+        const all = await getContracts();
+        if (all.some((c) => c.id === contract.id && c.version > contract.version))
+          throw new ApprovalError(409, "A newer agreement is already approved.");
+        const path = `contracts/${contract.id}.json`;
+        const existing = await readFile(path, head, signal);
+        if (existing) {
+          let published: unknown;
+          try { published = JSON.parse(existing.text); }
+          catch { throw new ApprovalError(409, "The agreement file needs review before publishing."); }
+          if (!published || typeof published !== "object" || !("version" in published) || !Number.isInteger(published.version))
+            throw new ApprovalError(409, "The agreement file needs review before publishing.");
+          if ((published.version as number) > contract.version)
+            throw new ApprovalError(409, "GitHub already has a newer agreement.");
+        }
+        const agents = (await readFile("AGENTS.md", head, signal))?.text ?? "# AGENTS.md\n";
+        return [
+          { path, content: JSON.stringify(contract, null, 2) + "\n" },
+          { path: "AGENTS.md", content: updateAgentsMd(agents, [...all.filter((c) => c.id !== contract.id), contract]) },
+        ];
+      },
+      recordCandidate: async (candidate) => {
+        job = await approvalRpc("chair_stage_approval", { ...fence, p_candidate: candidate });
+      },
+      discardCandidate: async (sha) => {
+        job = await approvalRpc("chair_stage_approval", { ...fence, p_candidate: null, p_clear_sha: sha });
+      },
+    }) : undefined;
+    // Statuses, the event, the chat notice, and the replayable result commit in
+    // one database transaction only after the GitHub ref is confirmed.
+    return await approvalRpc("chair_finish_approval", { ...fence, p_commit_sha: commitSha ?? null });
+  } catch (error) {
+    // A surviving request can be retried immediately. A crashed process instead
+    // leaves a two-minute lease; its saved commit is recovered on the next try.
+    await approvalRpc("chair_release_approval", fence).catch(() => {});
+    throw error;
+  }
+}
+
+export async function approveContract(id: string, version: number, approvedBy: string) {
+  const job = await approve("contract", id, version, approvedBy);
+  return { contract: job.contract!, commitSha: job.commit_sha! };
+}
+
 export async function approveConflict(conflictId: string, approvedBy: string) {
-  const c = await getConflict(conflictId);
-  if (!c) throw new Error(`No conflict ${conflictId}`);
-  const contract = c.contractId
-    ? (await getContracts()).find((x) => x.id === c.contractId)
-    : undefined;
-  // Commit first: if GitHub rejects it, the card stays open instead of turning green.
-  const commitSha = contract ? await publish(contract, approvedBy) : undefined;
-  await setConflictStatus(conflictId, "approved");
-  await postMessage({
-    author: { type: "system", name: "theChair" },
-    kind: "event",
-    body: `${approvedBy} approved the fix: ${c.suggestedFix ?? c.summary}`,
-    refId: conflictId,
-  });
-  return { contract, commitSha };
+  const job = await approve("conflict", conflictId, null, approvedBy);
+  return { contract: job.contract ?? undefined, commitSha: job.commit_sha ?? undefined };
 }

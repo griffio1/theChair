@@ -3,6 +3,8 @@ node_modules/
 .vercel/
 .env
 .env.local
+.env.*
+!.env.example
 web/.env.local
 *.log
 .DS_Store

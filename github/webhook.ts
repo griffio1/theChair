@@ -83,19 +83,18 @@ async function saveConflictOnce(conflict: Conflict): Promise<Conflict> {
   }
 }
 
-export async function handlePush(p: PushPayload): Promise<Conflict[]> {
+export async function handlePush(p: PushPayload, options: {
+  beforeExtract?: () => Promise<void>;
+  signal?: AbortSignal;
+} = {}): Promise<Conflict[]> {
+  const check = () => options.signal?.throwIfAborted();
+  check();
   const branch = p.ref.replace(/^refs\/heads\//, "");
   const agent = agentFromBranch(branch);
   const developer = p.pusher?.name ?? "unknown";
 
-  // Ignore theChair's own commits (contract + AGENTS.md sync) to avoid loops.
-  if (
-    p.head_commit?.message?.startsWith("AGENTS.md: sync") ||
-    p.head_commit?.message?.startsWith("contracts: ")
-  ) {
-    return [];
-  }
-
+  // Commit titles are user-controlled. Generated files are excluded below;
+  // a title that looks like a sync must never hide other changes in the push.
   const pushId = stableId(currentWorkspace(), p.ref, p.before, p.after);
   await insertOnce("events", {
     id: pushId,
@@ -121,10 +120,21 @@ export async function handlePush(p: PushPayload): Promise<Conflict[]> {
   const contracts = await getContracts();
 
   const all: Conflict[] = [];
+  let recognizedApis = 0;
   for (const file of files) {
+    check();
     const content = await readFile(file, p.after);
-    if (!content) continue;
-    const { shapes } = await extractShapes(file, content.text, p.after);
+    if (!content) throw new Error("A changed source file could not be read; retry the push check.");
+    check();
+    const { shapes } = await extractShapes(file, content.text, p.after, {
+      beforeModel: options.beforeExtract ? async () => {
+        check();
+        await options.beforeExtract!();
+        check();
+      } : undefined,
+      requireCache: !!options.beforeExtract,
+    });
+    recognizedApis += shapes.length;
     all.push(
       ...diffShapes(shapes, contracts, "webhook").map((c) => ({
         ...c,
@@ -150,10 +160,12 @@ export async function handlePush(p: PushPayload): Promise<Conflict[]> {
   );
   const saved: Conflict[] = [];
   for (const conflict of unique.values()) {
+    check();
     const row = await saveConflictOnce(conflict);
     saved.push(row);
     // Retry announcements independently: a failed message write must not leave
     // the persisted conflict without a dashboard card after the next delivery.
+    check();
     await insertOnce("messages", {
       id: stableId(row.id, "announcement"),
       author_type: "system",
@@ -163,13 +175,16 @@ export async function handlePush(p: PushPayload): Promise<Conflict[]> {
       ref_id: row.id,
     });
   }
+  check();
   if (!saved.length && files.length)
     await insertOnce("messages", {
       id: stableId(pushId, "all-clear"),
       author_type: "system",
       author_name: "theChair",
       kind: "event",
-      body: `Checked ${files.length} file(s) from ${branch} against the contracts. All clear.`,
+      body: recognizedApis
+        ? `Checked ${recognizedApis} API(s) in ${files.length} file(s) from ${branch}. No mismatches found in the detected API code.`
+        : `No API code recognized in ${files.length} file(s) from ${branch}. Review this update manually.`,
     });
   return saved;
 }

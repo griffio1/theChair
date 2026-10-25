@@ -24,6 +24,7 @@ test("owner integration routes scope writes, hash agent tokens, and never return
   });
   let role = "owner",
     githubAdmin = false;
+  let githubStatus = 200, rateLimited = false, malformedGithub = false;
   const writes: any[] = [];
   const json = (v: unknown) => Response.json(v);
   t.mock.method(
@@ -40,12 +41,15 @@ test("owner integration routes scope writes, hash agent tokens, and never return
           app_metadata: {},
           user_metadata: {},
         });
-      if (url.hostname === "api.github.com")
-        return json({
+      if (url.hostname === "api.github.com") {
+        if (!githubStatus) throw new Error("Network unavailable");
+        if (malformedGithub) return new Response("not JSON");
+        return Response.json({
           id: 42,
           full_name: "Owner/Repo",
           permissions: { admin: githubAdmin, push: true },
-        });
+        }, { status: githubStatus, headers: rateLimited ? { "x-ratelimit-remaining": "0" } : {} });
+      }
       if (url.pathname.endsWith("chair_memberships")) {
         assert.equal(url.searchParams.get("workspace_id"), `eq.${team}`);
         return json([{ role, display_name: "Owner" }]);
@@ -111,6 +115,21 @@ test("owner integration routes scope writes, hash agent tokens, and never return
     (e: unknown) => e instanceof WorkspaceError && e.status === 403,
   );
   githubAdmin = true;
+  for (githubStatus of [0, 429, 500, 502, 503, 403]) {
+    rateLimited = githubStatus === 403;
+    await assert.rejects(integrationsRequest(req(repo), team, ["repository"]),
+      (e: unknown) => e instanceof WorkspaceError && e.status === 503);
+    assert.equal(writes.length, 1, "GitHub failures must not replace the stored connection");
+  }
+  rateLimited = false;
+  for (githubStatus of [401, 403, 404])
+    await assert.rejects(integrationsRequest(req(repo), team, ["repository"]),
+      (e: unknown) => e instanceof WorkspaceError && e.status === 400);
+  githubStatus = 200;
+  malformedGithub = true;
+  await assert.rejects(integrationsRequest(req(repo), team, ["repository"]),
+    (e: unknown) => e instanceof WorkspaceError && e.status === 503);
+  malformedGithub = false;
   const connected = await integrationsRequest(req(repo), team, ["repository"]);
   assert.ok(!JSON.stringify(connected).includes(repo.token));
   assert.ok(!JSON.stringify(connected).includes(repo.webhookSecret));

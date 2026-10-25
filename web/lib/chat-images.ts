@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
-import { authenticate, readBody, validId, WorkspaceError } from "./workspace-server";
+import { authenticate, readBody, validId, usageLimit, WorkspaceError } from "./workspace-server";
 import { MAX_IMAGE_BYTES, normalizeImage } from "./image-validation";
 
 const BUCKET = "chair-chat-images";
@@ -67,10 +67,19 @@ export async function uploadImage(req: Request, workspaceId: string) {
     .lt("created_at", new Date(Date.now() - 86400000).toISOString()).limit(100);
   if (expired.error) throw unavailable();
   if (expired.data.length) {
-    const removed = await admin.from("chair_chat_images").delete().in("id", expired.data.map(r => r.id))
-      .is("message_id", null).is("team_message_id", null).select("object_path");
-    if (!removed.error && removed.data.length)
-      await admin.storage.from(BUCKET).remove(removed.data.map(r => r.object_path));
+    // Hide each draft before deleting its object. Message attachment locks the
+    // same row and requires ready=true, so it cannot race with this cleanup.
+    // Keep the row until storage confirms removal: its path lets later uploads
+    // retry cleanup after an outage rather than leaving an unreachable object.
+    const retired = await admin.from("chair_chat_images").update({ ready: false })
+      .in("id", expired.data.map(r => r.id)).is("message_id", null).is("team_message_id", null)
+      .select("id,object_path");
+    if (!retired.error && retired.data.length) {
+      const removed = await admin.storage.from(BUCKET).remove(retired.data.map(r => r.object_path));
+      if (!removed.error)
+        await admin.from("chair_chat_images").delete().in("id", retired.data.map(r => r.id))
+          .eq("ready", false).is("message_id", null).is("team_message_id", null);
+    }
   }
   const id = randomUUID();
   const row = {
@@ -81,6 +90,7 @@ export async function uploadImage(req: Request, workspaceId: string) {
     object_path: `${workspaceId}/${ctx.userId}/${id}.webp`,
   };
   const inserted = await admin.from("chair_chat_images").insert(row).select("*").single();
+  usageLimit(inserted.error);
   let saved = inserted.data;
   if (inserted.error?.code === "23505") {
     const previous = await admin.from("chair_chat_images").select("*").eq("workspace_id", workspaceId)
@@ -107,7 +117,13 @@ export async function readImage(req: Request, workspaceId: string, imageId: stri
   if (image.error) throw unavailable();
   if (!image.data) throw new WorkspaceError(404, "Image unavailable.");
   const result = await adminClient().storage.from(BUCKET).download(image.data.object_path);
-  if (result.error || !result.data) throw new WorkspaceError(404, "Image unavailable.");
+  if (result.error) {
+    const status = Number((result.error as { status?: number; statusCode?: string }).statusCode ??
+      (result.error as { status?: number }).status);
+    if (status === 404) throw new WorkspaceError(404, "Image unavailable.");
+    throw unavailable();
+  }
+  if (!result.data) throw new WorkspaceError(404, "Image unavailable.");
   return new Response(result.data, { headers: {
     "content-type": "image/webp", "content-disposition": "inline",
     "cache-control": "no-store, private", vary: "Authorization", "x-content-type-options": "nosniff",
@@ -129,6 +145,7 @@ export async function sendTeamImages(req: Request, workspaceId: string) {
   const ctx = await member(req, workspaceId);
   const input = imageMessageInput(await readBody(req), true);
   const result = await ctx.db.rpc("chair_send_images", { p_workspace: workspaceId, p_chat: null, ...input });
+  usageLimit(result.error);
   if (result.error?.code === "42501") throw new WorkspaceError(403, "Can't use an image. Remove it and upload it again.");
   if (result.error?.code === "23505") throw new WorkspaceError(409, "This message was already sent with different text or images.");
   if (result.error) throw unavailable();

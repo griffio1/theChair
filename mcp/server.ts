@@ -14,13 +14,14 @@ const DEVELOPER = process.env.THECHAIR_DEVELOPER ?? "unknown";
 async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method,
+    signal: AbortSignal.timeout(30000),
     headers: {
       "content-type": "application/json",
       ...(process.env.THECHAIR_AGENT_TOKEN ? { "x-thechair-agent-token": process.env.THECHAIR_AGENT_TOKEN } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`theChair ${method} ${path} -> ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`theChair ${method} ${path} -> ${res.status}. Check your connection and access, then try again.`);
   return (await res.json()) as T;
 }
 

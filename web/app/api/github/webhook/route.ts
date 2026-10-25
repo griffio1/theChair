@@ -1,11 +1,11 @@
 import { NextResponse, after } from "next/server";
-import { handlePush, verifySignature } from "../../../../../github/webhook";
-import { inWorkspace } from "../../../../../server/workspace-context";
+import { verifySignature } from "../../../../../github/webhook";
 import { adminDatabase } from "../../../../lib/workspace-integrations";
 import { readWebhookBody } from "../../../../lib/github-webhook";
 import { WorkspaceError } from "../../../../lib/workspace-server";
+import { enqueuePush, processWebhookJob } from "../../../../lib/webhook-jobs";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 export async function POST(req: Request) {
   let raw;
   try {
@@ -65,12 +65,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid push" }, { status: 400 });
   if (payload.deleted)
     return NextResponse.json({ ignored: "deleted branch" }, { status: 202 });
+  let jobId:string;
+  try { jobId=await enqueuePush(connection.workspace_id,payload); }
+  catch(error) {
+    return NextResponse.json({error:error instanceof WorkspaceError?error.message:"Code check could not be saved"},
+      {status:error instanceof WorkspaceError?error.status:503});
+  }
   after(async () => {
     try {
-      await inWorkspace(connection.workspace_id, () => handlePush(payload));
+      await processWebhookJob(jobId);
     } catch {
       console.error(
-        "[webhook] Workspace push check failed; retry the delivery.",
+        "[webhook] Saved check awaits scheduled retry.",
       );
     }
   });

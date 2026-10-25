@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "tsx --test engine/*.test.ts analyzer/*.test.ts github/*.test.ts",
+    "test": "tsx --test engine/*.test.ts analyzer/*.test.ts github/*.test.ts server/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "mcp": "tsx mcp/server.ts",
     "demo:server": "tsx demo/server/index.ts"

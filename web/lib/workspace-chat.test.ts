@@ -4,6 +4,24 @@ import { handleChat } from "../../server/chat";
 import { inWorkspace, currentWorkspace } from "../../server/workspace-context";
 const a = "10000000-0000-4000-8000-000000000001",
   b = "20000000-0000-4000-8000-000000000002";
+test("failed AI proposals do not post database or provider error details into chat", async (t) => {
+  const env = { SUPABASE_URL: "https://ledger.invalid", SUPABASE_SERVICE_KEY: "test", LLM_PROVIDER: "groq" };
+  const previous = Object.fromEntries(Object.keys(env).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, env);
+  t.after(() => { for (const [key, value] of Object.entries(previous)) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.hostname === "api.groq.com") return Response.json({ choices: [{ message: { content: null, tool_calls: [{
+      id: "call", type: "function", function: { name: "propose_contract", arguments: JSON.stringify({ id: "login", name: "Login", method: "POST", path: "/login", request: [], response: [], reason: "Propose login" }) },
+    }] } }] });
+    if ((init?.method ?? "GET") === "GET") return Response.json([]);
+    if (url.pathname.endsWith("contracts")) return new Response("private-database-error", { status: 503 });
+    return Response.json([{ ...JSON.parse(String(init?.body)), id: "message", created_at: "now" }]);
+  });
+  const result = await inWorkspace(a, () => handleChat({ author: "Owner", body: "Agree login" }));
+  assert.equal(result.at(-1)?.body, "Couldn't create that agreement. Try again.");
+  assert.ok(!JSON.stringify(result).includes("private-database-error"));
+});
 test("AI context, proposals and replies remain in the originating workspace", async (t) => {
   const env = {
     SUPABASE_URL: "https://ledger.invalid",

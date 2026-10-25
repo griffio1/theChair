@@ -2,6 +2,7 @@ import { inWorkspace } from "../../../../../server/workspace-context";
 import type { ProposeContractRequest } from "../../../../../shared/types";
 import { proposeContract } from "../../../../../server/propose";
 import { requireTeam } from "../../../../lib/legacy-access";
+import { consumeWorkspaceBudget } from "../../../../lib/production-limits";
 import {
   readBody,
   respond,
@@ -20,6 +21,7 @@ export async function POST(req: Request) {
       Array.isArray(body.contract)
     )
       throw new WorkspaceError(400, "A contract is required.");
+    await consumeWorkspaceBudget(identity.workspaceId, identity.budgetActorId, "proposal");
     return inWorkspace(identity.workspaceId, () =>
       proposeContract({
         ...body,

@@ -14,6 +14,8 @@ import { ChatImages, ImagePicker } from "../../components/chat-images";
 import { lastConversation, rememberConversation } from "../../lib/chat-selection";
 import { MessageReactions, useConversationReactions } from "../../components/chat-reactions";
 import { BrandMark, FlowArt } from "../../components/flow-art";
+import { Captcha, captchaSiteKey } from "../../components/captcha";
+import { captchaSubmissionError, CAPTCHA_UNAVAILABLE, type CaptchaProof } from "../../lib/captcha-policy";
 import type {
   Workspace,
   WorkspaceChat,
@@ -93,8 +95,16 @@ function AccountForm({ invited }: { invited: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [captcha, setCaptcha] = useState<CaptchaProof>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const pending = useRef(false);
+  const signupUnavailable = signup && process.env.NODE_ENV === "production" && !captchaSiteKey;
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (pending.current) return;
+    const verification = captchaSubmissionError(signup ? "signup" : "signin",captchaSiteKey,process.env.NODE_ENV === "production",captcha);
+    if (verification) { setError(verification); return; }
+    pending.current = true;
     setBusy(true);
     setError("");
     setNotice("");
@@ -106,11 +116,13 @@ function AccountForm({ invited }: { invited: boolean }) {
             options: {
               data: { displayName: name.trim() },
               emailRedirectTo: `${location.origin}/workspaces`,
+              captchaToken: captcha?.token,
             },
           })
         : await supabase.auth.signInWithPassword({
             email: email.trim(),
             password,
+            options: { captchaToken: captcha?.token },
           });
       if (result.error) throw result.error;
       setPassword("");
@@ -121,6 +133,9 @@ function AccountForm({ invited }: { invited: boolean }) {
     } catch (e) {
       setError(errorText(e));
     } finally {
+      pending.current = false;
+      setCaptcha(null);
+      setCaptchaReset(value => value + 1);
       setBusy(false);
     }
   }
@@ -168,6 +183,9 @@ function AccountForm({ invited }: { invited: boolean }) {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
+        {!signup && <a className="wp-text-button" href="/recover">Forgot password?</a>}
+        <Captcha action={signup ? "signup" : "signin"} resetKey={captchaReset} onToken={setCaptcha} disabled={busy} />
+        {signupUnavailable && <p className="wp-alert" role="status">{CAPTCHA_UNAVAILABLE}</p>}
         {error && (
           <p className="wp-alert" role="alert">
             {error}
@@ -178,7 +196,7 @@ function AccountForm({ invited }: { invited: boolean }) {
             {notice}
           </p>
         )}
-        <button className="wp-primary" disabled={busy} type="submit">
+        <button className="wp-primary" disabled={busy || signupUnavailable} type="submit">
           {busy ? (signup ? "Creating…" : "Signing in…") : signup ? "Create account" : "Sign in"}<HubIcon name="arrow" size={16} />
         </button>
         <button
@@ -189,6 +207,8 @@ function AccountForm({ invited }: { invited: boolean }) {
             setSignup(!signup);
             setError("");
             setNotice("");
+            setCaptcha(null);
+            setCaptchaReset(value => value + 1);
           }}
         >
           {signup

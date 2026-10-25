@@ -2,6 +2,7 @@ import { inWorkspace } from "../../../../server/workspace-context";
 import type { PreflightRequest } from "../../../../shared/types";
 import { runPreflight } from "../../../../server/preflight";
 import { requireTeam } from "../../../lib/legacy-access";
+import { consumeWorkspaceBudget } from "../../../lib/production-limits";
 import {
   readBody,
   respond,
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
       typeof body.intent !== "string"
     )
       throw new WorkspaceError(400, "Intent and file paths are required.");
+    await consumeWorkspaceBudget(identity.workspaceId, identity.budgetActorId, "preflight");
     const source =
       new URL(req.url).searchParams.get("source") === "hook"
         ? "hook"
