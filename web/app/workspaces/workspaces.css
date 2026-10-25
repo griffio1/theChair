@@ -1220,7 +1220,7 @@
   background: radial-gradient(ellipse at 80% 0%, color-mix(in srgb,var(--blue) 6%,transparent),transparent 48%),var(--canvas);
 }
 .workspace-hub button:disabled { cursor: not-allowed; opacity: .48; }
-.workspace-hub :is(button,a,input,textarea,select):focus-visible { outline: 3px solid var(--blue); outline-offset: 4px; }
+.workspace-hub :is(button,a,select):focus-visible { outline: 2px solid var(--muted); outline-offset: 3px; }
 .workspace-hub :is(button,a) { -webkit-tap-highlight-color: transparent; }
 .workspace-hub svg { flex-shrink: 0; }
 .wp-sidebar {
@@ -1351,7 +1351,7 @@
 .wp-dialog-copy { line-height: 1.9; overflow-wrap: anywhere; }
 .wp-field { gap: 9px; margin: 20px 0; font-size: 11px; font-weight: 650; }
 .wp-field :is(input,textarea) { min-width: 0; padding: 14px; border-radius: 12px; transition: border-color 220ms; }
-.wp-field :is(input,textarea):focus { border-color: var(--wp-accent); }
+.wp-field :is(input,textarea):focus { border-color: var(--muted); }
 .wp-join-banner { padding: 23px; border-radius: 20px; border-color: color-mix(in srgb,var(--wp-accent) 25%,var(--wp-border)); background: var(--accent-soft); }
 .wp-join-banner > div { min-width: min(200px,100%); }
 .wp-join-banner p { overflow-wrap: anywhere; }

@@ -1,0 +1,34 @@
+.workspace-hub form.compact-composer {
+  display: grid; grid-template-columns: 36px minmax(0,1fr) 38px;
+  align-items: end; gap: 0 10px; padding: 10px 12px; border-radius: 28px;
+  border: 1px solid var(--line); background: var(--paper); box-shadow: none;
+}
+.workspace-hub form.compact-composer:focus-within { border-color: var(--line); box-shadow: none; }
+.workspace-hub .compact-composer textarea {
+  grid-column: 2; grid-row: 1; align-self: center; display: block;
+  min-height: 24px; max-height: 160px; width: 100%; padding: 0; margin: 0;
+  resize: none; border: 0; outline: none !important; box-shadow: none !important;
+  background: transparent; color: var(--ink); font: inherit; font-size: 14px; line-height: 24px;
+}
+.compact-composer .chat-image-picker-compact { display: contents; }
+.compact-composer .chat-image-picker-compact .chat-image-picker-bar { grid-column: 1; grid-row: 1; }
+.workspace-hub .compact-composer .chat-image-add {
+  display: grid; place-items: center; width: 36px; height: 36px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; color: var(--muted);
+}
+.workspace-hub .compact-composer .chat-image-add:hover { background: var(--accent-soft); color: var(--ink); }
+.workspace-hub .compact-composer .composer-send {
+  grid-column: 3; grid-row: 1; display: grid; place-items: center;
+  width: 38px; min-width: 38px; height: 38px; padding: 0; border: 0;
+  border-radius: 50%; box-shadow: none; background: var(--blue); color: white;
+}
+.compact-composer .chat-image-drafts,.compact-composer .chat-image-error {
+  grid-column: 1 / -1; margin: 12px 0 0;
+}
+.compact-composer .chat-image-drafts { order: 2; }
+.workspace-hub .compact-composer.chat-image-drop-active { outline: 2px dashed var(--muted); outline-offset: 3px; }
+.workspace-hub .wp-composer.compact-composer { margin-bottom: 16px; }
+@media(max-width:760px) {
+  .workspace-hub form.compact-composer { gap: 0 7px; padding: 8px; }
+  .workspace-hub .compact-composer textarea { font-size: 16px; }
+}

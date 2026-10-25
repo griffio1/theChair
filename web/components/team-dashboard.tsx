@@ -6,6 +6,7 @@ import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
 import { MessageReactions, useConversationReactions } from "./chat-reactions";
 import { Markdown } from "./markdown";
+import {MessageInput} from "./message-input";
 import { mergeTeamMessages, teamMessageRows, type TeamMessageRow } from "../lib/team-messages";
 
 type Row = Record<string, any>;
@@ -659,13 +660,13 @@ export default function TeamDashboard({
                   {view === "chat" && (
                     <div className="composer-wrap">
                       <form
-                        className="composer"
+                        className="composer compact-composer"
                         onSubmit={(e) => {
                           e.preventDefault();
                           void send();
                         }}
                       >
-                        <textarea
+                        <MessageInput
                           aria-label="Message the team"
                           placeholder="Write a message…"
                           value={draft}
@@ -682,14 +683,11 @@ export default function TeamDashboard({
                               void send();
                             }
                           }}
-                          rows={2}
                         />
-                        <ImagePicker workspaceId={workspaceId} images={draftImages} disabled={busy} onBusy={setUploading}
+                        <ImagePicker compact workspaceId={workspaceId} images={draftImages} disabled={busy} onBusy={setUploading}
                           onChange={images => { setDraftImages(images); imageMessageId.current = ""; }} />
-                        <div className="composer-bottom">
-                          <span>{draftImages.length ? "Images are shared with your team, not AI" : "Shared with your team and AI"}</span>
                           <button
-                            className="send-button"
+                            className="send-button composer-send"
                             type="submit"
                             disabled={busy || uploading || (!draft.trim() && !draftImages.length)}
                             aria-label={
@@ -702,11 +700,7 @@ export default function TeamDashboard({
                               <Icon name="arrow" size={18} />
                             )}
                           </button>
-                        </div>
                       </form>
-                      <div className="composer-hint">
-                        Enter to send<span>·</span>Shift + Enter for a new line
-                      </div>
                     </div>
                   )}
                 </>

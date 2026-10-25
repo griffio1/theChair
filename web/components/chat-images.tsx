@@ -56,9 +56,9 @@ export function ChatImages({ workspaceId, images, project = false }: { workspace
   return <div className="chat-images">{images.map(image => <PrivateImage key={image.id} workspaceId={workspaceId} image={image} project={project} />)}</div>;
 }
 
-export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy, project = false }: {
+export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy, project = false, compact = false }: {
   workspaceId: string; images: ChatImage[]; onChange: (images: ChatImage[]) => void;
-  disabled: boolean; onBusy: (busy: boolean) => void; project?: boolean;
+  disabled: boolean; onBusy: (busy: boolean) => void; project?: boolean; compact?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLElement>(null);
@@ -157,15 +157,15 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy, p
     }
   }
   chooseLatest.current = choose;
-  return <section ref={picker} className="chat-image-picker" aria-label="Images">
+  return <section ref={picker} className={`chat-image-picker${compact ? " chat-image-picker-compact" : ""}`} aria-label="Images">
     <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e => {
       void choose(Array.from(e.target.files ?? [])); e.target.value="";
     }} />
     <div className="chat-image-picker-bar">
-      <button type="button" className="chat-image-add" disabled={disabled || uploading || images.length >= 4} onClick={() => input.current?.click()}>
-        {uploading ? "Uploading…" : "Add images"}
+      <button type="button" className="chat-image-add" aria-label={uploading ? "Uploading images" : "Add images"} title="Add images · Drop or paste" disabled={disabled || uploading || images.length >= 4} onClick={() => input.current?.click()}>
+        {compact ? uploading ? <span aria-hidden="true">…</span> : <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg> : uploading ? "Uploading…" : "Add images"}
       </button>
-      <small>Drop or paste · Up to 4 images, 3 MB each</small>
+      {!compact && <small>Drop or paste · Up to 4 images, 3 MB each</small>}
     </div>
     {!!images.length && <div className="chat-image-drafts">{images.map(image => <div key={image.id}>
       <PrivateImage workspaceId={workspaceId} image={image} project={project} />

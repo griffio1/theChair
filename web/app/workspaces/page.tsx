@@ -14,6 +14,7 @@ import TeamDashboard from "../../components/team-dashboard";
 import WorkspaceConnections from "../../components/workspace-connections";
 import AccountSettings from "../../components/account-settings";
 import ProjectInfo from "../../components/project-info";
+import {MessageInput} from "../../components/message-input";
 import { accountName } from "../../lib/account-settings";
 import { readWorkspaceLocation, workspaceHref, type WorkspaceView as View } from "../../lib/workspace-navigation";
 import { ChatImages, ImagePicker } from "../../components/chat-images";
@@ -1128,16 +1129,15 @@ export default function Workspaces() {
                     </div>
                     {reactions.error && <p className="reaction-error" role="alert">{reactions.error}</p>}
                     <form
-                      className="wp-composer"
+                      className="wp-composer compact-composer"
                       onSubmit={(e) => {
                         e.preventDefault();
                         void send();
                       }}
                     >
-                      <textarea
+                      <MessageInput
                         aria-label={`Message in ${chat?.title ?? "this chat"}`}
                         placeholder="Write a message"
-                        rows={3}
                         maxLength={10000}
                         disabled={!chat || busy}
                         value={draft}
@@ -1153,27 +1153,23 @@ export default function Workspaces() {
                           }
                         }}
                       />
-                      <ImagePicker key={`${userId}/${scope}`} workspaceId={activeSpace} images={draftImages}
+                      <ImagePicker compact key={`${userId}/${scope}`} workspaceId={activeSpace} images={draftImages}
                         disabled={busy || !chat}
                         onBusy={value => setUploadScope(value ? scope : "")}
                         onChange={images => {
                           if (userId !== userRef.current) return;
                           setDrafts(items => ({ ...items, [scope]: { body: items[scope]?.body ?? "", images, clientMessageId: crypto.randomUUID() } }));
                         }} />
-                      <div>
-                        <span>Workspace members only</span>
                         <button
-                          className="wp-primary"
+                          className="wp-primary composer-send"
                           type="submit"
+                          aria-label={busy ? "Sending message" : "Send message"}
+                          title="Send message"
                           disabled={busy || uploading || !chat || (!draft.trim() && !draftImages.length)}
                         >
-                          {busy ? "Sending…" : "Send"}<HubIcon name="send" size={16} />
+                          {busy ? <span aria-hidden="true">…</span> : <HubIcon name="send" size={18} />}
                         </button>
-                      </div>
                     </form>
-                    <div className="wp-chat-footnote">
-                      Enter to send · Shift + Enter for a new line
-                    </div>
                   </section>
                 </div>
               )}
