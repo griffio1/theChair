@@ -79,7 +79,7 @@ Deploy `web/` to Vercel (root directory `web`), then in the repo: Settings → W
 ## Demo (3 min)
 
 1. **Main chat:** "login returns userId and token" → AI proposes the contract → Approve.
-2. **Beat 1, Claude Code:** asked to rename the response to snake_case → the hook blocks it in its own terminal with the contract line and the fix.
+2. **Beat 1, Claude Code:** asked to rename the response to snake_case → theChair blocks it (preflight first, the hook as backstop) in its own terminal with the contract line and the fix.
 3. **Beat 2, Codex:** told to read `user_id` from "old notes" and push → webhook catches it → red card in the chat with file and line.
 4. **Approve fix** → AGENTS.md + contract committed → card turns green.
 
