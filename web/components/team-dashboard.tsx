@@ -8,6 +8,7 @@ import { FlowArt } from "./flow-art";
 import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
 import { MessageReactions, useConversationReactions } from "./chat-reactions";
+import { Markdown } from "./markdown";
 import { mergeTeamMessages, teamMessageRows, type TeamMessageRow } from "../lib/team-messages";
 
 type Row = Record<string, any>;
@@ -555,7 +556,7 @@ export default function TeamDashboard({
             {system && <span className="ai-label">System</span>}
           </div>
           <div className="team-message-bubble">
-            {m.body && <div className="message-body">{m.body}</div>}
+            {m.body && <div className="message-body">{ai ? <Markdown text={m.body} /> : m.body}</div>}
             <ChatImages workspaceId={workspaceId} images={m.images} />
           </div>
           <MessageReactions messageId={m.id} reactions={reactions} />
