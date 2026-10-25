@@ -69,7 +69,7 @@ export default function PasswordRecovery() {
   async function requestLink(event: FormEvent) {
     event.preventDefault();
     if (pending.current) return;
-    const verification = captchaSubmissionError("recovery",captchaSiteKey,process.env.NODE_ENV === "production",captcha);
+    const verification = captchaSubmissionError("recovery",captchaSiteKey,captcha);
     if (verification) { setState(previous => ({...previous,error:verification})); return; }
     pending.current = true; setBusy(true); setState(previous => ({...previous,error:""}));
     try {
