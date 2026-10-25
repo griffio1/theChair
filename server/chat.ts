@@ -51,6 +51,7 @@ function systemPrompt(contractsJson: string, notices: string): string {
     "Rules:",
     "- Reply to the latest human message. The notices below are cards the team already sees on screen; only explain one when someone asks about it.",
     "- Be brief. Plain English, no filler. The team is under time pressure.",
+    "- The chat shows raw text, not markdown. Never use **bold**, *italics*, # headings or tables. Use short lines and \"- \" for lists.",
     "- Only call propose_contract when the shape is concrete (method, path, field names and types). If something is missing, ask one short question.",
     "- JSON fields are camelCase unless the team explicitly decides otherwise.",
     "- When asked about a conflict, explain what breaks for the user and which file to change. Never invent contracts that are not in the ledger.",
@@ -62,6 +63,17 @@ function systemPrompt(contractsJson: string, notices: string): string {
     "Recent theChair notices (conflict cards, proposals, events):",
     notices || "(none)",
   ].join("\n");
+}
+
+/** The chat renders raw text, so drop the markdown models add anyway. Backticks stay; they read fine. */
+export function plainText(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/(^|[\s(])\*(?!\s)([^*\n]+?)\*(?=[\s).,!?:;]|$)/gm, "$1$2")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^(\s*)[*•]\s+/gm, "$1- ")
+    .trim();
 }
 
 function toLlm(m: Message): ChatMessage {
@@ -124,7 +136,7 @@ export async function handleChat(req: ChatRequest): Promise<Message[]> {
   }
 
   if (content && content.trim()) {
-    created.push(await postMessage({ author: { type: "ai", name: "theChair AI" }, kind: "text", body: content.trim() }));
+    created.push(await postMessage({ author: { type: "ai", name: "theChair AI" }, kind: "text", body: plainText(content) }));
   }
   return created;
 }
