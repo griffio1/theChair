@@ -12,6 +12,8 @@ import { supabase } from "../../lib/supabase";
 import { AppearancePicker } from "../../components/appearance-picker";
 import TeamDashboard from "../../components/team-dashboard";
 import WorkspaceConnections from "../../components/workspace-connections";
+import AccountSettings from "../../components/account-settings";
+import { accountName } from "../../lib/account-settings";
 import { readWorkspaceLocation, workspaceHref, type WorkspaceView as View } from "../../lib/workspace-navigation";
 import { ChatImages, ImagePicker } from "../../components/chat-images";
 import { lastConversation, rememberConversation } from "../../lib/chat-selection";
@@ -270,10 +272,7 @@ export default function Workspaces() {
   const draftImages = drafts[scope]?.images ?? [];
   const uploading = uploadScope === scope;
   useEffect(() => { setUploadScope(""); }, [scope, userId]);
-  const me =
-    session?.user.user_metadata?.displayName ||
-    session?.user.email?.split("@")[0] ||
-    "You";
+  const me = accountName(session?.user.user_metadata, session?.user.email);
 
   useEffect(() => {
     let active = true;
@@ -368,7 +367,7 @@ export default function Workspaces() {
       .then((result) => {
         if (ctrl.signal.aborted) return;
         setSpaces(result.workspaces);
-        if (!result.workspaces.length) setView("home");
+        if (!result.workspaces.length) setView(previous => previous === "account" ? previous : "home");
         setActiveSpace((id) =>
           result.workspaces.some((s) => s.id === id)
             ? id
@@ -761,6 +760,10 @@ export default function Workspaces() {
                   <small>Signed in</small>
                 </span>
               </div>
+              <button className={`wp-account-button ${view === "account" ? "active" : ""}`}
+                aria-current={view === "account" ? "page" : undefined} disabled={busy} onClick={() => navigate("account")}>
+                <HubIcon name="people" size={17} />Account
+              </button>
               <button
                 className="wp-text-button"
                 disabled={busy}
@@ -780,7 +783,7 @@ export default function Workspaces() {
             <strong>
               {!session ? "Sign in" : view === "home"
                 ? "Workspaces"
-                : view === "team" ? "Team chat" : view === "connections" ? "Connections" : view === "chat"
+                : view === "account" ? "Account" : view === "team" ? "Team chat" : view === "connections" ? "Connections" : view === "chat"
                   ? (chat?.title ?? "Chat")
                   : view === "people"
                     ? "People"
@@ -865,7 +868,7 @@ export default function Workspaces() {
                   active={["team", "contracts", "conflicts"].includes(view)} onNavigate={navigate} />
               </div>}
               <div className="wp-view" key={view}>
-              {view === "home" ? (
+              {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "home" ? (
                 <>
                   <section className="wp-page-heading wp-home-hero">
                     <div className="wp-home-copy">

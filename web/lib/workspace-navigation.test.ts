@@ -5,7 +5,7 @@ const space = "11111111-1111-4111-8111-111111111111";
 const chat = "22222222-2222-4222-8222-222222222222";
 
 test("workspace links preserve selection across reloads and browser history", () => {
-  for (const view of ["team", "chat", "home", "people", "contracts", "conflicts", "connections"] as WorkspaceView[]) {
+  for (const view of ["team", "chat", "home", "people", "contracts", "conflicts", "connections", "account"] as WorkspaceView[]) {
     const url = new URL(workspaceHref(space, view, chat), "https://example.com");
     assert.deepEqual(readWorkspaceLocation(url.search), {workspaceId: space, view, chatId: view === "chat" ? chat : ""});
   }

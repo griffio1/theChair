@@ -1,0 +1,25 @@
+.account-settings { max-width: 850px; }
+.account-card { margin-bottom: 22px; padding: 28px; border: 1px solid var(--line); border-radius: 22px; background: var(--paper); box-shadow: var(--shadow-soft); }
+.account-card h2 { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.5px; }
+.account-card-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 10px; }
+.account-card-heading p,.account-help { margin: 7px 0 15px; font-size: 12px; line-height: 1.6; color: var(--muted); overflow-wrap: anywhere; }
+.account-card-heading p { margin-bottom: 0; }
+.account-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px; }
+.account-card .wp-field { min-width: 0; margin: 18px 0 12px; }
+.account-card .wp-field input { width: 100%; }
+.account-optional { font-size: 11px; font-weight: 400; color: var(--muted); }
+.account-card .wp-field:has(.account-optional) { position: relative; }
+.account-optional { position: absolute; right: 0; top: 0; }
+.account-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; }
+.account-error,.account-success { padding: 11px 13px; margin: 16px 0; border-radius: 10px; font-size: 12px; line-height: 1.6; }
+.account-error { color: var(--ink); background: var(--warning-soft); border: 1px solid var(--line); }
+.account-success { color: var(--success); background: var(--success-soft); }
+.account-verification { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: 12px; }
+.wp-account-button { display: flex; align-items: center; gap: 10px; width: 100%; margin: 4px 0 12px; padding: 9px 10px; border: 1px solid transparent; border-radius: 12px; background: transparent; text-align: left; font-size: 12px !important; color: var(--muted) !important; }
+.wp-account-button:hover,.wp-account-button.active { color: var(--blue) !important; background: var(--accent-soft); }
+@media (max-width: 760px) {
+  .account-card { padding: 22px 18px; border-radius: 18px; }
+  .account-fields { grid-template-columns: minmax(0,1fr); gap: 0; }
+  .workspace-hub .wp-sidebar-bottom { flex-wrap: wrap; align-items: center; gap: 8px; }
+  .wp-account-button { margin: 0; width: auto; }
+}

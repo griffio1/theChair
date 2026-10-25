@@ -1,5 +1,5 @@
-export type WorkspaceView = "home" | "team" | "chat" | "people" | "contracts" | "conflicts" | "connections";
-const views = new Set<WorkspaceView>(["home", "team", "chat", "people", "contracts", "conflicts", "connections"]);
+export type WorkspaceView = "home" | "team" | "chat" | "people" | "contracts" | "conflicts" | "connections" | "account";
+const views = new Set<WorkspaceView>(["home", "team", "chat", "people", "contracts", "conflicts", "connections", "account"]);
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 export function readWorkspaceLocation(search: string) {

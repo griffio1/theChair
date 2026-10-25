@@ -1,8 +1,16 @@
 # Workspace team dashboards
 
-Every workspace has a dashboard at `/workspaces/:workspaceId/team`, reached through
-**Team agreements & AI chat**. `/team` remains an alias for the original Test67
-workspace. Light, Dark and Pride use the existing shared appearance preference.
+Team chat, Agreements, Issues, People and Connections share the `/workspaces`
+layout. Old `/workspaces/:workspaceId/team` links redirect into that layout.
+`/team` remains an alias for the original Test67 workspace. Light, Dark and Pride
+use the shared appearance preference.
+
+**Account**, beside the profile at the bottom left, edits display name, optional
+nickname, email and password using Supabase Auth. A nickname takes precedence in
+member lists, reactions and new messages; old messages retain their original
+author names. Email changes follow the project's confirmation settings. Password
+changes support the current password and reauthentication codes. Passwords and
+codes are never stored in browser storage by this feature.
 
 ## Access and data
 
@@ -26,7 +34,7 @@ stored in Supabase. Existing Test67 agent credentials continue to work.
 
 ## Repository and agent setup
 
-In a workspace's team dashboard, expand **Repository & agents**:
+In the workspace sidebar, open **Connections**, then **Repository & agents**:
 
 1. Enter `owner/repository`, a GitHub token and a webhook secret of at least
    32 characters. GitHub must confirm the token's account has repository admin
@@ -51,10 +59,12 @@ Reference: [GitHub token permissions](https://docs.github.com/en/rest/authentica
 
 ## Deployment and current handoff
 
-The shared Supabase project has all nine migrations applied: `workspaces.sql`,
+The shared Supabase project has these migrations applied: `workspaces.sql`,
 `secure-team.sql`, `workspace-teams.sql`, `workspace-roles.sql`, `chat-images.sql`,
 `chat-reactions.sql`, then the production set `production-limits.sql`,
-`webhook-jobs.sql` and `approval-publishing.sql`. Do not rerun any of them.
+`webhook-jobs.sql` and `approval-publishing.sql`, followed by `account-profiles.sql`.
+Carter confirmed the profile migration succeeded. It synchronizes names without
+changing roles or chat history. Do not rerun older migrations.
 For a separate database, first install `supabase/schema.sql` and `workspaces.sql`,
 create the intended owner's workspace, and review the explicit destination UUID
 in `secure-team.sql` before continuing. Its Test67 binding is specific to the
