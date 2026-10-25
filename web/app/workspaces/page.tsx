@@ -27,6 +27,12 @@ type View = "home" | "chat" | "people" | "contracts" | "conflicts";
 type Draft = { body: string; clientMessageId: string; images?: ChatImage[] };
 type Modal = "workspace" | "chat" | "invite" | "share";
 
+class ApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+const accessUnavailable = (error: unknown) =>
+  error instanceof ApiError && [401, 403, 404].includes(error.status);
+
 async function api<T>(
   path: string,
   body?: object,
@@ -48,10 +54,11 @@ async function api<T>(
   });
   const result = await response.json();
   if (!response.ok)
-    throw new Error(
+    throw new ApiError(
       typeof result.error === "string"
         ? result.error
         : "The request failed. Please try again.",
+      response.status,
     );
   return result as T;
 }
@@ -214,6 +221,8 @@ export default function Workspaces() {
     : undefined;
   const chat = current?.chats.find((c) => c.id === activeChat);
   const scope = `${activeSpace}/${activeChat}`;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   const visibleMessages = history.scope === scope ? history.items : [];
   const reactions = useConversationReactions(activeSpace, activeChat, userId, view === "chat" && visibleMessages.length > 0);
   const draft = drafts[scope]?.body ?? "";
@@ -324,7 +333,17 @@ export default function Workspaces() {
             : (result.chats[0]?.id ?? ""),
         );
       } catch (e) {
-        if (!ctrl.signal.aborted) setError(errorText(e));
+        if (!ctrl.signal.aborted) {
+          if (accessUnavailable(e)) {
+            setDetail(null);
+            setTeamWorkspace("");
+            setActiveChat("");
+            setHistory({scope:"",items:[]});
+            setDrafts(previous => Object.fromEntries(Object.entries(previous).filter(([key]) => !key.startsWith(`${activeSpace}/`))));
+            setSpaces(previous => previous.filter(workspace => workspace.id !== activeSpace));
+          }
+          setError(errorText(e));
+        }
       } finally {
         if (!ctrl.signal.aborted) timer = setTimeout(load, 10000);
       }
@@ -381,6 +400,7 @@ export default function Workspaces() {
       } catch (e) {
         if (!ctrl.signal.aborted) {
           setSyncState("Retrying");
+          if (accessUnavailable(e)) setHistory({scope:"",items:[]});
           setError(errorText(e));
         }
       } finally {
@@ -503,7 +523,7 @@ export default function Workspaces() {
         { body: item.body, clientMessageId: item.clientMessageId, imageIds: item.images?.map(image => image.id) ?? [] },
       );
       if (actor !== userRef.current) return;
-      mergeMessages(key, result.messages);
+      if (scopeRef.current === key) mergeMessages(key, result.messages);
       setDrafts((items) =>
         items[key]?.clientMessageId === item.clientMessageId
           ? {
@@ -512,9 +532,9 @@ export default function Workspaces() {
             }
           : items,
       );
-      setSyncState("Synced");
+      if (scopeRef.current === key) setSyncState("Synced");
     } catch (e) {
-      if (actor === userRef.current)
+      if (actor === userRef.current && scopeRef.current === key)
         setError(
           `${errorText(e)} Your draft is still here; retrying won’t duplicate the message.`,
         );

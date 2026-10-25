@@ -22,10 +22,12 @@ export function useConversationReactions(workspaceId: string, conversationId: st
   const [error, setError] = useState("");
   const liveScope = useRef(scope); liveScope.current = scope;
   const mutation = useRef(0);
-  const pending = useRef(false);
+  const pending = useRef<{scope:string} | null>(null);
   const base = `/api/workspaces/${workspaceId}/conversations/${conversationId}`;
   useEffect(() => {
     setState({scope,rows:[]}); setError(""); setBusy("");
+    pending.current = null;
+    mutation.current++;
     if (!workspaceId || !conversationId || !userId || !enabled) return;
     const ctrl = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
@@ -41,15 +43,21 @@ export function useConversationReactions(workspaceId: string, conversationId: st
     return () => { ctrl.abort(); clearTimeout(timer); };
   }, [scope, base, workspaceId, conversationId, userId, enabled]);
   async function toggle(messageId:string,emoji:string) {
-    if (pending.current) return;
-    pending.current = true; mutation.current++; setBusy(messageId); setError("");
+    if (pending.current?.scope === scope) return;
+    const operation = {scope};
+    pending.current = operation; mutation.current++; setBusy(messageId); setError("");
     const rows = state.scope === scope ? state.rows : [];
     const active = !rows.find(r => r.messageId === messageId && r.emoji === emoji)?.reactedByMe;
     try {
       const updated = await request(`${base}/messages/${messageId}/reactions`, AbortSignal.timeout(15000), {emoji,active});
-      if (liveScope.current === scope) setState(previous => ({scope,rows:[...(previous.scope === scope ? previous.rows : []).filter(r => r.messageId !== messageId),...updated]}));
-    } catch (e) { if (liveScope.current === scope) setError(e instanceof Error ? e.message : "Reaction failed. Try again."); }
-    finally { pending.current = false; mutation.current++; if (liveScope.current === scope) setBusy(""); }
+      if (liveScope.current === scope && pending.current === operation) setState(previous => ({scope,rows:[...(previous.scope === scope ? previous.rows : []).filter(r => r.messageId !== messageId),...updated]}));
+    } catch (e) { if (liveScope.current === scope && pending.current === operation) setError(e instanceof Error ? e.message : "Reaction failed. Try again."); }
+    finally {
+      if (pending.current === operation) {
+        pending.current = null; mutation.current++;
+        if (liveScope.current === scope) setBusy("");
+      }
+    }
   }
   return { rows: state.scope === scope ? state.rows : [], busy, error, toggle };
 }

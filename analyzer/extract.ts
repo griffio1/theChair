@@ -55,6 +55,29 @@ const PROMPT = `You extract HTTP API shapes from one source file.
 - evidence: 1-based line numbers and the exact line of code.
 - If the file has no HTTP API code, return {"shapes": []}.`;
 
+const fieldTypes = new Set(["string", "number", "boolean", "object", "array", "null", "unknown"]);
+const methods = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+const record = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+const fields = (value: unknown): boolean => Array.isArray(value) && value.every((field) =>
+  record(field) && typeof field.name === "string" && field.name.trim().length > 0 &&
+  typeof field.type === "string" && fieldTypes.has(field.type) && typeof field.required === "boolean");
+
+/** A provider's schema is a request, not a guarantee: never cache an invalid extraction. */
+function validatedShapes(value: unknown, file: string): ExtractedShape[] {
+  if (!Array.isArray(value) || !value.every((shape) =>
+    record(shape) && (shape.role === "producer" || shape.role === "consumer") &&
+    typeof shape.method === "string" && methods.has(shape.method) &&
+    typeof shape.path === "string" && shape.path.startsWith("/") &&
+    fields(shape.requestFields) && fields(shape.responseFields) &&
+    Array.isArray(shape.evidence) && shape.evidence.every((entry) =>
+      record(entry) && Number.isSafeInteger(entry.line) && Number(entry.line) > 0 &&
+      typeof entry.snippet === "string"))) {
+    throw new Error("Gemini returned an invalid HTTP shape");
+  }
+  return (value as Omit<ExtractedShape, "file">[]).map((shape) => ({ ...shape, file }));
+}
+
 async function gemini(file: string, text: string, timeoutMs: number): Promise<ExtractedShape[]> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY not set");
@@ -85,10 +108,19 @@ async function gemini(file: string, text: string, timeoutMs: number): Promise<Ex
       },
     );
     if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    const data = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-    const raw = data.candidates?.[0]?.content?.parts?.[0]?.text ?? '{"shapes":[]}';
-    const parsed = JSON.parse(raw) as { shapes: Omit<ExtractedShape, "file">[] };
-    return parsed.shapes.map((s) => ({ ...s, file }));
+    const data = (await res.json()) as {
+      candidates?: { finishReason?: string; content?: { parts?: { text?: string; thought?: boolean }[] } }[];
+    };
+    const candidate = data.candidates?.[0];
+    if (candidate?.finishReason && candidate.finishReason !== "STOP") {
+      throw new Error("Gemini did not complete the extraction");
+    }
+    const raw = candidate?.content?.parts
+      ?.filter((part) => !part.thought && typeof part.text === "string")
+      .map((part) => part.text).join("");
+    if (!raw?.trim()) throw new Error("Gemini returned no extraction text");
+    const parsed: unknown = JSON.parse(raw);
+    return validatedShapes(record(parsed) ? parsed.shapes : undefined, file);
   } finally {
     clearTimeout(timer);
   }
@@ -106,7 +138,7 @@ export async function extractShapes(file: string, text: string, sha?: string): P
         "extraction_cache",
         `sha=eq.${sha}&file=eq.${encodeURIComponent(file)}`,
       );
-      if (hit) return { shapes: hit.shapes, source: "cache" };
+      if (hit) return { shapes: validatedShapes(hit.shapes, file), source: "cache" };
     } catch {
       /* cache is best-effort */
     }

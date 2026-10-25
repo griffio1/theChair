@@ -1,88 +1,152 @@
 # theChair
 
-Git merges code. theChair merges intent.
+**Git merges code. theChair merges intent.**
 
-Teams mixing AI coding agents (Claude Code, Codex) get conflicts git can't see: one agent writes `userId`, the other reads `user_id`. theChair keeps a ledger of the API contracts the team agreed on in the **main chat**, checks agents **before** they write (MCP `preflight` + a Claude Code hook) and **after** they push (GitHub webhook), and posts every conflict into the chat with a plain-English explanation and a one-click fix.
+When teammates use different AI coding agents, their code can merge cleanly and
+still disagree: a backend returns `userId` while a frontend reads `user_id`.
+theChair keeps approved API agreements in a shared workspace, checks an agent's
+plan before it edits, and checks changed source after a GitHub push. Conflicts
+include the affected file, evidence and a suggested change.
 
-## Layout and owners
+Owners approve agreements; developers apply source fixes and verify them with
+another check. Approval does not automatically rewrite application code.
 
-| Path | What | Owner |
-|---|---|---|
-| `shared/types.ts` | The frozen interface. Change only with both builders + a DECISIONS.md line | Parag + Carter |
-| `contracts/` | Approved contracts as JSON (committed by the approve route) | Parag + Carter |
-| `engine/` | Deterministic diff + preflight verdicts + AGENTS.md writer | Parag (A) |
-| `server/` | Ledger (Supabase REST), LLM adapter, main chat, approve, GitHub helpers | Parag (A) |
-| `mcp/` | Local stdio MCP server: `get_contracts`, `preflight`, `propose_contract_change` | Parag (A) |
-| `hooks/` | Claude Code PreToolUse hook that blocks contract-breaking edits | Parag (A) |
-| `web/` | Next.js dashboard (main chat + contracts) and API route handlers | Carter (B) |
-| `github/` | Push webhook pipeline | Carter (B) |
-| `analyzer/` | Gemini extractor (JSON schema, SHA cache) + deterministic fallback | Carter (B) |
-| `demo/` | Tiny login app the demo runs on | Carter (B) |
+## Demo
 
-## Status
+- Hosted app: **https://the-chair-peach.vercel.app** (sign-in and workspace membership required).
+- Existing team: **Test67 → Team agreements & AI chat**.
+- [Three-minute demo and recovery commands](demo/RUNBOOK.md).
 
-Working and tested here (`npm test`, 20 tests): diff engine, preflight verdicts, AGENTS.md rewriting, deterministic extractor on the demo app, and the Claude Code hook (simulated: blocks the `user_id` edit, allows harmless ones, works offline against `contracts/*.json`).
+## What's built
 
-Written but **not yet run** (no network to install packages in the build sandbox): the Next.js app and routes, the MCP server, Supabase calls, Groq/Gemini calls, GitHub calls. Expect small fixes on first run; that's what the hour-3 checkpoint is for.
+- Private workspaces, persistent conversations, invitations and owner/member roles.
+- Workspace-scoped contracts, AI discussion, agent credentials and repository connections.
+- MCP `get_contracts`, `preflight`, and `propose_contract_change`; Claude Code edit hook.
+- Signed GitHub push analysis, Gemini extraction with deterministic fallback,
+  duplicate-delivery handling and shared conflict cards.
+- Private image attachments, drag/drop and paste, shared reactions, and Light,
+  Dark and Pride appearance. Images are for teammates to view; AI image analysis
+  is not part of this feature.
 
-## Workspaces
+See [workspace setup](web/WORKSPACE-TEAMS.md), [images](web/CHAT-IMAGES.md),
+and [chat/reactions](web/CHAT-EXPERIENCE.md) for access rules and verification.
 
-Each workspace has its own team dashboard, contracts, AI chat, agent credentials
-and repository connection. See [workspace team setup](web/WORKSPACE-TEAMS.md)
-for migrations, access rules and connection instructions.
+## Local setup
 
-## Setup
+Use Node.js 20+ and the committed lockfiles. From the repository root:
 
-```bash
-npm install            # root: tsx, typescript (tests + hook)
-cd web && npm install  # Next.js dashboard + API
-cd ../mcp && npm install
-cp .env.example .env   # fill in keys (never commit .env); also copy to web/.env.local
-npm test
+```powershell
+npm ci
+npm --prefix web ci
+npm --prefix mcp ci
+# Only if this private file does not already exist:
+Copy-Item .env.example web/.env.local
 ```
 
-1. **Supabase:** run `supabase/schema.sql` in the SQL editor. It creates the tables, read-only RLS for the dashboard, Realtime, and seeds `auth-login` v1.
-2. **Main chat LLM:** `LLM_PROVIDER=groq`, `GROQ_API_KEY` from groq.com (with a q). Switch to `gemini` or `ollama` with one env var.
-3. **Extractor:** `GEMINI_API_KEY`, and set `GEMINI_MODEL` to the current Flash model name. `EXTRACTOR=deterministic` skips Gemini entirely.
-4. **Run:** `cd web && npm run dev` → http://localhost:3000.
+Fill in the ignored env file privately. Supply the Supabase URL, server secret,
+browser publishable/anon key, Groq key and Gemini key/model. Set
+`LLM_PROVIDER=groq` and `EXTRACTOR=auto`; `EXTRACTOR=deterministic` is the offline
+extractor option. Confirm the Gemini model in Google's model list when configuring
+a new environment.
 
-### Connect the agents (hour-3 checkpoint)
+The browser key goes in `NEXT_PUBLIC_SUPABASE_ANON_KEY` (this variable also accepts
+a Supabase publishable key). Never put a server secret in a `NEXT_PUBLIC_` variable.
+Set `THECHAIR_API_URL` to the API your agents use; `THECHAIR_PUBLIC_URL` supplies
+public invitation links when developing locally.
 
-Claude Code (from the repo root):
+The shared hackathon database already has all migrations applied. **Do not rerun
+old migrations just to start the app.** For another database, see the migration
+order and explicit legacy-workspace binding in [workspace setup](web/WORKSPACE-TEAMS.md).
 
-```bash
-claude mcp add thechair \
-  -e THECHAIR_API_URL=http://localhost:3000 -e THECHAIR_AGENT=claude-code -e THECHAIR_DEVELOPER=<name> \
-  -- npx tsx mcp/server.ts
+```powershell
+npm --prefix web run dev
+# In a second terminal, for the tiny fixture backend:
+npm run demo:server
 ```
 
-The hook in `.claude/settings.json` is picked up automatically; set `THECHAIR_API_URL`, `THECHAIR_DEVELOPER`, and the private `THECHAIR_AGENT_TOKEN` in its environment so authenticated checks show on the dashboard. Add the same private token to the MCP launcher's environment.
+Open http://localhost:3000, sign in, and select your workspace. The demo backend
+listens on port 4000. Its login contract is separate from Supabase account sign-in.
 
-Codex (`~/.codex/config.toml`):
+## Connect agents and GitHub
+
+An owner opens **Team agreements & AI chat → Repository & agents** and creates an
+agent credential. Store the one-time value privately in the MCP/hook environment.
+Credentials are scoped to one workspace, expire after 30 days, and cannot approve
+agreements or manage connections.
+
+Codex (`~/.codex/config.toml`; use an absolute path):
 
 ```toml
 [mcp_servers.thechair]
 command = "npx"
-args = ["tsx", "/ABSOLUTE/PATH/thechair/mcp/server.ts"]
-env = { THECHAIR_API_URL = "http://localhost:3000", THECHAIR_AGENT = "codex", THECHAIR_DEVELOPER = "<name>", THECHAIR_AGENT_TOKEN = "<private-agent-credential>" }
+args = ["tsx", "/ABSOLUTE/PATH/theChair/mcp/server.ts"]
+env = { THECHAIR_API_URL = "https://the-chair-peach.vercel.app", THECHAIR_AGENT = "codex", THECHAIR_DEVELOPER = "carter", THECHAIR_AGENT_TOKEN = "<private-agent-credential>" }
 ```
 
-Pass: both agents can call `get_contracts` and get `auth-login` back. Register a
-30-day agent credential with `web/scripts/configure-agent.ts` as described in
-`web/WORKSPACES.md`. Store the raw token only in ignored env/private configuration
-files. Agent credentials cannot approve contract changes.
+Restart Codex and call `get_contracts`. Claude Code can register the same server
+with its own credential and `THECHAIR_AGENT=claude-code`. The hook in
+`.claude/settings.json` is picked up automatically; give it `THECHAIR_API_URL`,
+`THECHAIR_DEVELOPER` and its private `THECHAIR_AGENT_TOKEN` environment variables.
+It can also check committed contracts offline.
 
-### GitHub webhook
+An owner connects `owner/repository`, a repository-scoped GitHub token with
+Contents read/write and repository administrator access, and a random webhook
+secret of at least 32 characters. In GitHub Settings → Webhooks, use the displayed
+URL, JSON content type, push events and the same secret. Connecting in theChair
+does not create the GitHub webhook automatically.
 
-Deploy `web/` to Vercel (root directory `web`), then in the repo: Settings → Webhooks → `https://<app>.vercel.app/api/github/webhook`, content type JSON, secret = `GITHUB_WEBHOOK_SECRET`, events: push. `GITHUB_TOKEN` needs contents read/write on this repo only. Branches follow `agent/<tool>/<topic>` so cards say which agent pushed.
+Repository credentials come from the server-only workspace connection table.
+Global `GITHUB_TOKEN`/`GITHUB_WEBHOOK_SECRET` are not substitutes for this connection.
+`GITHUB_REPO` identifies theChair's own repository for demo-source exclusions.
+Use `agent/<tool>/<topic>` branch names to identify the pushing agent.
 
-## Demo (3 min)
+For Vercel, use the existing project, Root Directory `web`, Next.js preset, and
+include files outside the root directory in the build. Set the server/browser
+environment variables on that project. Parag manages the shared deployment.
 
-1. **Main chat:** "login returns userId and token" → AI proposes the contract → Approve.
-2. **Beat 1, Claude Code:** asked to rename the response to snake_case → theChair blocks it (preflight first, the hook as backstop) in its own terminal with the contract line and the fix.
-3. **Beat 2, Codex:** told to read `user_id` from "old notes" and push → webhook catches it → red card in the chat with file and line.
-4. **Approve fix** → AGENTS.md + contract committed → card turns green.
+## Validate
 
-## Data note
+```powershell
+npm test
+npm run typecheck
+npm --prefix web test
+npx tsc --noEmit -p web/tsconfig.json
+npm --prefix web run build
+```
 
-Changed files are sent to the Gemini API for shape extraction, and chat messages to Groq. Free tiers may use prompts to improve the providers' products. Don't point theChair at code you can't share.
+Stop the local Next.js dev server before building: both use `web/.next`.
+Live checks create disposable accounts/workspaces and remove their own data.
+Point them only at the API and Supabase project configured together in your
+private env. `WORKSPACE_CHECK_URL` overrides the default localhost API.
+
+```powershell
+node --env-file=web/.env.local --import tsx web/scripts/check-workspaces.ts
+node --env-file=web/.env.local --import tsx web/scripts/check-workspace-teams.ts
+node --env-file=web/.env.local --import tsx web/scripts/check-chat-images.ts
+node --env-file=web/.env.local --import tsx analyzer/check-gemini.ts
+```
+
+## Layout and ownership
+
+| Path | Purpose | Owner |
+|---|---|---|
+| `web/` | Workspace UI, API routes, migrations and checks | Carter |
+| `github/`, `analyzer/`, `demo/` | Push pipeline, extraction and fixtures | Carter |
+| `server/`, `engine/` | Ledger, AI adapter, approvals and contract checks | Parag |
+| `mcp/`, `hooks/` | Agent connection and edit hook | Parag |
+| `shared/`, `contracts/`, `AGENTS.md`, `DECISIONS.md` | Interfaces and agreements | Both |
+
+Read [AGENTS.md](AGENTS.md) before editing. Call `get_contracts` and `preflight`;
+contract changes require a human-approved proposal.
+
+## Scope and data
+
+This hackathon MVP detects API contract mismatches; it is not a general proof of
+application correctness. Deterministic extraction supports limited source
+patterns. Push processing is asynchronous: check Vercel logs and redeliver a
+webhook if processing fails after acceptance.
+
+Changed source goes to Gemini when enabled, and team AI conversations go to the
+configured chat provider. Use code/data your team is authorized to send. Secrets
+belong in private configuration, never in chat, screenshots or commits. Share
+invitation links manually; the app does not send invitation emails.

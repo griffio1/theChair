@@ -26,6 +26,45 @@ test("workspace routes reject missing or malformed sessions before database acce
     );
   }
 });
+
+test("temporary auth failures preserve sessions while invalid tokens still return 401", async (t) => {
+  const vars = {
+    NEXT_PUBLIC_SUPABASE_URL: "https://database.invalid",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-test",
+  };
+  const previous = Object.fromEntries(Object.keys(vars).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, vars);
+  t.after(() => {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  let status = 200;
+  t.mock.method(console, "error", () => {});
+  t.mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+    assert.equal(new URL(String(input)).pathname, "/auth/v1/user");
+    assert.equal(new Headers(init?.headers).get("authorization"), "Bearer session");
+    if (!status) throw new DOMException("Timed out", "TimeoutError");
+    return Response.json(status === 200 ? {
+      id: "30000000-0000-4000-8000-000000000003",
+      aud: "authenticated", app_metadata: {}, user_metadata: {},
+    } : { message: "Auth provider error" }, { status });
+  });
+  const req = () => new Request("http://localhost/api/workspaces", {
+    headers: { authorization: "Bearer session" },
+  });
+  assert.equal((await authenticate(req())).userId, "30000000-0000-4000-8000-000000000003");
+  for (status of [0, 429, 500, 502, 503]) {
+    const response = await respond(() => authenticate(req()));
+    assert.equal(response.status, 503, `upstream ${status} must not force sign-in`);
+    assert.match((await response.json()).error, /temporarily unavailable/);
+  }
+  for (status of [400, 401, 403]) {
+    await assert.rejects(authenticate(req()),
+      (error: unknown) => error instanceof WorkspaceError && error.status === 401);
+  }
+});
 test("JSON parsing bounds actual content and rejects invalid bodies", async () => {
   const req = (body: string) =>
     new Request("http://localhost", {

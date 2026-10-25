@@ -115,12 +115,19 @@ function consumers(file: string, text: string): ExtractedShape[] {
   const re = /fetch\(\s*(["'`])([^"'`]*\/api\/[^"'`]*)\1\s*(?:,\s*\{)?/g;
   for (let m; (m = re.exec(text)); ) {
     const path = m[2];
-    const rest = text.slice(m.index, m.index + 1500);
-    const method = ((/method:\s*["'](\w+)["']/.exec(rest)?.[1] ?? "GET").toUpperCase()) as HttpMethod;
+    const afterCall = m.index + m[0].length;
+    // This fallback recognizes a fetch followed by its JSON reads. A later fetch
+    // starts another response, even if its URL isn't one we can extract.
+    const nextFetch = /\bfetch\s*\(/.exec(text.slice(afterCall));
+    const end = nextFetch ? afterCall + nextFetch.index : text.length;
+    const rest = text.slice(m.index, Math.min(m.index + 1500, end));
+    // Only the current call's options can supply its method or request body.
+    const options = m[0].endsWith("{") ? braced(text, afterCall - 1) : "";
+    const method = ((/method:\s*["'](\w+)["']/.exec(options)?.[1] ?? "GET").toUpperCase()) as HttpMethod;
 
     const requestFields: FieldSpec[] = [];
-    const sm = /JSON\.stringify\(\s*\{/.exec(rest);
-    if (sm) requestFields.push(...fieldsFromObject(braced(rest, sm.index + sm[0].length - 1)));
+    const sm = /\bbody:\s*JSON\.stringify\(\s*\{/.exec(options);
+    if (sm) requestFields.push(...fieldsFromObject(braced(options, sm.index + sm[0].length - 1)));
 
     const responseFields: FieldSpec[] = [];
     const evidence = [{ line: lineOf(text, m.index), snippet: snippetAt(text, m.index) }];

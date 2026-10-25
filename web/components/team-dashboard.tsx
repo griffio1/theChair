@@ -7,9 +7,11 @@ import { AppearancePicker } from "../components/appearance-picker";
 import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
 import { MessageReactions, useConversationReactions } from "./chat-reactions";
+import { mergeTeamMessages, teamMessageRows, type TeamMessageRow } from "../lib/team-messages";
 
 type Row = Record<string, any>;
 type View = "chat" | "conflicts" | "contracts";
+
 type IconName =
   | "chat"
   | "conflicts"
@@ -145,7 +147,7 @@ export default function TeamDashboard({
   workspaceName: string;
   canApprove: boolean;
 }) {
-  const [messages, setMessages] = useState<Row[]>([]);
+  const [messages, setMessages] = useState<TeamMessageRow[]>([]);
   const [conflicts, setConflicts] = useState<Record<string, Row>>({});
   const [contracts, setContracts] = useState<Row[]>([]);
   const [draft, setDraft] = useState("");
@@ -162,6 +164,8 @@ export default function TeamDashboard({
   const reactions = useConversationReactions(workspaceId, "team", userId, view !== "contracts" && messages.length > 0);
   const [error, setError] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
+  const refreshConversation = useRef<() => void>(() => {});
+  const ledgerRevision = useRef(0);
 
   async function authHeaders() {
     const { data } = await supabase.auth.getSession();
@@ -173,50 +177,74 @@ export default function TeamDashboard({
     };
   }
 
-  async function loadContracts() {
+  async function loadContracts(signal?: AbortSignal) {
     const { data, error } = await supabase
       .from("contracts")
       .select("*")
       .eq("workspace_id", workspaceId)
       .order("id")
-      .order("version", { ascending: false });
+      .order("version", { ascending: false }).abortSignal(signal ?? AbortSignal.timeout(15000));
     if (error) throw error;
-    setContracts(data ?? []);
+    return data ?? [];
   }
 
   useEffect(() => {
     let active = true;
+    let messagesInFlight = false;
+    let ledgerInFlight = false;
     const ctrl = new AbortController();
     setLoading(true);
     setLoadingLedger(true);
     async function loadMessages() {
+      if (messagesInFlight || !active) return;
+      messagesInFlight = true;
       try {
         const { data: m, error: messageError } = await supabase
           .from("messages")
           .select("*")
           .eq("workspace_id", workspaceId)
           .order("created_at", { ascending: false })
-          .limit(200).abortSignal(ctrl.signal);
+          .limit(200).abortSignal(AbortSignal.any([ctrl.signal, AbortSignal.timeout(15000)]));
         if (messageError) throw messageError;
-        if (active) setMessages(previous => [...new Map([...(m ?? []), ...previous].map(row => [row.id,row])).values()]
-          .sort((a,b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)).slice(-200));
+        if (active) {
+          setMessages(previous => mergeTeamMessages(previous, m ?? []));
+          setError(previous => previous === "Couldn’t refresh the conversation. Reconnecting automatically." ? "" : previous);
+        }
       } catch {
-        if (active) setError("Couldn’t load the conversation. Refresh to try again.");
+        if (active) setError("Couldn’t refresh the conversation. Reconnecting automatically.");
       } finally {
+        messagesInFlight = false;
         if (active) setLoading(false);
       }
     }
     async function loadLedger() {
+      if (ledgerInFlight || !active) return;
+      ledgerInFlight = true;
+      const revision = ledgerRevision.current;
       try {
-        const [result] = await Promise.all([
-          supabase.from("conflicts").select("*").eq("workspace_id", workspaceId).abortSignal(ctrl.signal),
-          loadContracts(),
+        const signal = AbortSignal.any([ctrl.signal, AbortSignal.timeout(15000)]);
+        const [result, nextContracts] = await Promise.all([
+          supabase.from("conflicts").select("*").eq("workspace_id", workspaceId).abortSignal(signal),
+          loadContracts(signal),
         ]);
         if (result.error) throw result.error;
-        if (active) setConflicts(Object.fromEntries((result.data ?? []).map(row => [row.id,row])));
+        if (active && revision === ledgerRevision.current) {
+          setConflicts(Object.fromEntries((result.data ?? []).map(row => [row.id,row])));
+          setContracts(nextContracts);
+          setError(previous => previous === "Some team details could not load. Chat is still available." ? "" : previous);
+        }
       } catch { if (active) setError("Some team details could not load. Chat is still available."); }
-      finally { if (active) setLoadingLedger(false); }
+      finally {
+        ledgerInFlight = false;
+        if (active) {
+          // Events and approvals may have changed the ledger while this snapshot was in flight.
+          if (revision !== ledgerRevision.current) void loadLedger();
+          else setLoadingLedger(false);
+        }
+      }
     }
+    function refresh() { void loadMessages(); void loadLedger(); }
+    refreshConversation.current = refresh;
     void loadMessages();
     void loadLedger();
     const ch = supabase
@@ -229,10 +257,7 @@ export default function TeamDashboard({
           table: "messages",
           filter: `workspace_id=eq.${workspaceId}`,
         },
-        (p) =>
-          setMessages((prev) =>
-            prev.some((x) => x.id === p.new.id) ? prev : [...prev, p.new],
-          ),
+        (p) => { if (active) setMessages(prev => mergeTeamMessages(prev, [p.new as TeamMessageRow])); },
       )
       .on(
         "postgres_changes",
@@ -242,13 +267,16 @@ export default function TeamDashboard({
           table: "conflicts",
           filter: `workspace_id=eq.${workspaceId}`,
         },
-        (p) =>
+        (p) => {
+          if (!active) return;
+          ledgerRevision.current++;
           setConflicts((prev) => {
             const next = { ...prev };
             if (p.eventType === "DELETE") delete next[p.old.id];
             else next[p.new.id] = p.new;
             return next;
-          }),
+          });
+        },
       )
       .on(
         "postgres_changes",
@@ -258,13 +286,10 @@ export default function TeamDashboard({
           table: "contracts",
           filter: `workspace_id=eq.${workspaceId}`,
         },
-        () => {
-          void loadContracts().catch(() =>
-            setError("Couldn’t refresh contracts. Refresh to try again."),
-          );
-        },
+        () => { if (active) { ledgerRevision.current++; void loadLedger(); } },
       )
-      .subscribe((status) =>
+      .subscribe((status) => {
+        if (!active) return;
         setConnection(
           status === "SUBSCRIBED"
             ? "Live"
@@ -273,11 +298,21 @@ export default function TeamDashboard({
                 status === "CLOSED"
               ? "Reconnecting"
               : "Connecting",
-        ),
-      );
+        );
+        // Reload after reconnecting: events sent while offline are not replayed.
+        if (status === "SUBSCRIBED") refresh();
+      });
+    const poll = setInterval(() => { if (!document.hidden) refresh(); }, 10000);
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", refresh);
     return () => {
       active = false;
       ctrl.abort();
+      clearInterval(poll);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", refresh);
+      refreshConversation.current = () => {};
       void supabase.removeChannel(ch);
     };
   }, [workspaceId]);
@@ -295,18 +330,23 @@ export default function TeamDashboard({
       if (!imageMessageId.current) imageMessageId.current = crypto.randomUUID();
       const response = await fetch(draftImages.length ? `/api/workspaces/${workspaceId}/team/images` : "/api/chat", {
         method: "POST",
+        signal: AbortSignal.timeout(45000),
         headers: await authHeaders(),
         body: JSON.stringify(draftImages.length
           ? { body, clientMessageId: imageMessageId.current, imageIds: draftImages.map(image => image.id) }
           : { author: me, body }),
       });
+      const result = await response.json();
       if (!response.ok) {
-        const result = await response.json();
         throw new Error(result.error || "Your message couldn’t be sent. Please try again.");
       }
+      const sent = teamMessageRows(draftImages.length ? result.messages : result);
+      setMessages(previous => mergeTeamMessages(previous, sent));
+      refreshConversation.current();
       setDraft(""); setDraftImages([]); imageMessageId.current = "";
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Your message couldn’t be sent. Please try again.");
+      refreshConversation.current();
+      setError(`${error instanceof Error ? error.message : "Couldn’t confirm your message."} Check the conversation before retrying; your draft is still here.`);
     } finally {
       setBusy(false);
     }
@@ -318,6 +358,7 @@ export default function TeamDashboard({
     version?: number,
   ) {
     const key = `${kind}:${id}`;
+    ledgerRevision.current++;
     setPending(key);
     setError("");
     try {
@@ -325,6 +366,7 @@ export default function TeamDashboard({
         `/api/${kind === "conflict" ? "conflicts" : "contracts"}/${encodeURIComponent(id)}/approve`,
         {
           method: "POST",
+          signal: AbortSignal.timeout(45000),
           headers: await authHeaders(),
           body: JSON.stringify(
             kind === "conflict"
@@ -337,21 +379,26 @@ export default function TeamDashboard({
         const failure = await response.json();
         throw new Error(failure.error || "Approval failed");
       }
-      if (kind === "contract") await loadContracts();
+      const revision = ++ledgerRevision.current;
+      if (kind === "contract") {
+        const next = await loadContracts();
+        if (revision === ledgerRevision.current) setContracts(next);
+      }
       else {
         const { data, error } = await supabase
           .from("conflicts")
           .select("*")
           .eq("workspace_id", workspaceId);
         if (error) throw error;
-        setConflicts(Object.fromEntries((data ?? []).map((c) => [c.id, c])));
+        if (revision === ledgerRevision.current) setConflicts(Object.fromEntries((data ?? []).map((c) => [c.id, c])));
       }
-    } catch {
+    } catch (error) {
       setError(
-        "Couldn’t confirm the approval. Refresh to check its status before trying again.",
+        `${error instanceof Error ? error.message : "Couldn’t confirm the approval."} Refresh to check its status before trying again.`,
       );
     } finally {
       setPending(null);
+      refreshConversation.current();
     }
   }
 
@@ -383,17 +430,19 @@ export default function TeamDashboard({
       return (
         <article
           key={m.id}
-          className={`event-card chat-reactable ${open ? "conflict-card" : "resolved-card"}`}
+          className={`event-card chat-reactable ${open ? "conflict-card" : c ? "resolved-card" : ""}`}
         >
           <div className="event-heading">
             <span className="event-icon">
-              <Icon name={open ? "conflicts" : "check"} size={16} />
+              <Icon name={open ? "conflicts" : c ? "check" : "contracts"} size={16} />
             </span>
             <strong>
               {open
                 ? "Contract conflict detected"
-                : c
-                  ? "Conflict resolved"
+                : c?.status === "approved"
+                  ? "Agreement approved"
+                  : c?.status === "dismissed"
+                    ? "Conflict dismissed"
                   : "Contract check"}
             </strong>
             <span className={`badge ${open ? "badge-warn" : "badge-neutral"}`}>
@@ -428,11 +477,12 @@ export default function TeamDashboard({
                 disabled={pending !== null}
                 onClick={() => void approve("conflict", c.id)}
               >
-                {pending === `conflict:${c.id}` ? "Approving…" : "Approve fix"}
+                {pending === `conflict:${c.id}` ? "Approving…" : "Approve agreement"}
                 <Icon name="chevron" size={13} />
               </button>
             )}
           </div>
+          {(open || c?.status === "approved") && <p className="event-copy">Approval records the agreement. Apply the source change and run another check to verify the fix.</p>}
         </article>
       );
     }
@@ -642,7 +692,7 @@ export default function TeamDashboard({
               </span>
               <span>
                 <strong>
-                  {loading ? "—" : String(approved.length).padStart(2, "0")}
+                  {loadingLedger ? "—" : String(approved.length).padStart(2, "0")}
                 </strong>
                 <span>Shared contracts</span>
               </span>
@@ -659,7 +709,7 @@ export default function TeamDashboard({
               </span>
               <span>
                 <strong>
-                  {loading ? "—" : String(openCount).padStart(2, "0")}
+                  {loadingLedger ? "—" : String(openCount).padStart(2, "0")}
                 </strong>
                 <span>Needs attention</span>
               </span>
@@ -671,7 +721,7 @@ export default function TeamDashboard({
               </span>
               <span>
                 <strong>
-                  {loading ? "—" : String(caught).padStart(2, "0")}
+                  {loadingLedger ? "—" : String(caught).padStart(2, "0")}
                 </strong>
                 <span>Caught before merge</span>
               </span>
@@ -686,6 +736,7 @@ export default function TeamDashboard({
               </button>
             </div>
           )}
+          {reactions.error && <p className="reaction-error" role="alert">{reactions.error}</p>}
           <div
             className={`content-grid ${view === "contracts" ? "contracts-view" : ""}`}
           >
@@ -774,7 +825,6 @@ export default function TeamDashboard({
                   </div>
                   {view === "chat" && (
                     <div className="composer-wrap">
-                      {reactions.error && <p className="reaction-error" role="alert">{reactions.error}</p>}
                       <form
                         className="composer"
                         onSubmit={(e) => {

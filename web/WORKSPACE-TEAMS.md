@@ -51,8 +51,13 @@ Reference: [GitHub token permissions](https://docs.github.com/en/rest/authentica
 
 ## Deployment and current handoff
 
-Run these migrations in order: `workspaces.sql`, `secure-team.sql`, then
-`workspace-teams.sql`. Carter has applied all three to the shared Supabase project.
+The shared Supabase project has all six migrations applied: `workspaces.sql`,
+`secure-team.sql`, `workspace-teams.sql`, `workspace-roles.sql`, `chat-images.sql`,
+then `chat-reactions.sql`. No migration is needed for the readiness fixes.
+For a separate database, first install `supabase/schema.sql` and `workspaces.sql`,
+create the intended owner's workspace, and review the explicit destination UUID
+in `secure-team.sql` before continuing. Its Test67 binding is specific to the
+shared hackathon database; never assign existing data to an arbitrary account.
 Deploy this branch's API and UI together after the migration. Older server code
 cannot insert ledger rows without the new required workspace ID. Do not run the
 old `secure-team.sql` again after the workspace migration; it restores the old
@@ -62,12 +67,10 @@ Carter explicitly approved the four new integration contracts and backend
 ownership exception. Approved JSON contracts and AGENTS.md are synchronized;
 the same four approvals are recorded in Test67's ledger.
 
-Parag must finish Test67's repository connection: the existing local GitHub token
-has push/read access but not repository admin access, and no local webhook secret
-is configured. The new implementation intentionally does not silently reuse
-those global credentials for another workspace. Team chat, contracts and agent
-preflight work without a repository connection; approval publishing and GitHub
-push analysis require a valid connection.
+Parag connected Test67 to `griffio1/thechair` and configured its webhook.
+A real GitHub push caught the rehearsal's `data.user_id` mismatch. The recovery
+push restores `data.userId`; see [the runbook](../demo/RUNBOOK.md). Other workspaces
+need their own repository connection. Global credentials are not silently reused.
 
 Vercel still needs its existing Supabase and LLM/extractor credentials. Repository
 credentials now come from the workspace connection table. `GITHUB_REPO` is only
@@ -75,7 +78,7 @@ used to recognize theChair's own source tree for its demo-file exclusions.
 
 ## Verification
 
-Root suite: 36 tests. Web suite: 29 tests, including PostgreSQL isolation,
+Root and web suites cover extraction, PostgreSQL isolation,
 concurrent server contexts, AI context/proposal isolation and credential controls.
 Root and web TypeScript checks pass, including the evidence assertion in
 `engine/diff.test.ts:68` that Carter explicitly authorized fixing. The production
@@ -84,9 +87,10 @@ build also passes.
 Live disposable-account checks pass for separate ledgers and claims, scoped
 agents, revocation, owner/member restrictions, signed webhook ping routing,
 existing chat/invitation flows and original Test67 protections. All disposable
-accounts/workspaces were removed. Tests did not publish real GitHub commits.
-A real repository connection and push still need Parag's setup. Visual interaction
-and all three theme variants should be reviewed in a browser.
+accounts/workspaces were removed. Integration scripts do not publish GitHub
+commits; separate real push rehearsals use isolated demo branches. Carter manually
+confirmed uploads, paste/drop, reactions, bubbles and faster conversation loading.
+Browser automation is unavailable; review the latest recovery states manually.
 
 ```powershell
 npm test
@@ -114,10 +118,8 @@ matching verified email. The UI warns if only a localhost link is available.
 No invitation emails are sent automatically.
 
 The hosted AI chat and Gemini extractor were exercised successfully. The demo
-backend returns userId and token on port 4000. Repository connection/publishing
-and an actual GitHub push remain pending a repository administrator's setup;
-Test67 had no connection at verification time. Browser automation exposed no
-available browser, so visual theme/mobile checks remain manual.
+backend returns userId and token on port 4000. Real GitHub push analysis is now
+connected. Visual theme/mobile checks remain manual.
 
 Private image attachments are available in both workspace and team chats. See
 [chat image setup and verification](CHAT-IMAGES.md) for the applied migration,

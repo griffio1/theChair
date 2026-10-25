@@ -58,6 +58,6 @@ types, persisted history, text compatibility and loss of access after membership
 revocation. PostgreSQL tests cover direct RLS and RPC abuse as well.
 
 Browser automation is unavailable in this session; visual review is manual.
-The existing Next.js dependency tree still reports two npm audit findings through
-PostCSS (one moderate, one high). They predate this feature; the suggested automatic
-fix is a Next.js major upgrade, which is not included in this attachment change.
+The readiness pass updates Next.js's nested PostCSS dependency to patched 8.5.31
+through a scoped override. The web dependency audit now reports zero findings;
+no Next.js major upgrade was required.

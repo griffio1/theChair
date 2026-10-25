@@ -129,10 +129,19 @@ export async function authenticate(req: Request): Promise<Context> {
         }),
     },
   });
-  const { data, error } = await db.auth.getUser(authorization.slice(7));
-  if (error || !data.user)
+  let result;
+  try {
+    result = await db.auth.getUser(authorization.slice(7));
+  } catch {
+    throw new WorkspaceError(503, "Sign-in verification is temporarily unavailable. Please try again.");
+  }
+  // An auth outage is not an expired session. Returning 401 for a timeout or
+  // rate limit makes clients discard working credentials and ask users to log in.
+  if (result.error && ![400, 401, 403].includes(result.error.status ?? 0))
+    throw new WorkspaceError(503, "Sign-in verification is temporarily unavailable. Please try again.");
+  if (result.error || !result.data.user)
     throw new WorkspaceError(401, "Your session expired. Sign in again.");
-  return { db, userId: data.user.id };
+  return { db, userId: result.data.user.id };
 }
 
 const workspace = (r: Row, role: Workspace["role"]): Workspace => ({

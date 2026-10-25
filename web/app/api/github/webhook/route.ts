@@ -2,12 +2,20 @@ import { NextResponse, after } from "next/server";
 import { handlePush, verifySignature } from "../../../../../github/webhook";
 import { inWorkspace } from "../../../../../server/workspace-context";
 import { adminDatabase } from "../../../../lib/workspace-integrations";
+import { readWebhookBody } from "../../../../lib/github-webhook";
+import { WorkspaceError } from "../../../../lib/workspace-server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export async function POST(req: Request) {
-  const raw = await req.text();
-  if (raw.length > 2_000_000)
-    return NextResponse.json({ error: "Payload too large" }, { status: 413 });
+  let raw;
+  try {
+    raw = await readWebhookBody(req);
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof WorkspaceError ? error.message : "Invalid payload" },
+      { status: error instanceof WorkspaceError ? error.status : 400 },
+    );
+  }
   let payload;
   try {
     payload = JSON.parse(raw);
@@ -17,16 +25,21 @@ export async function POST(req: Request) {
   const id = payload?.repository?.id;
   if (!Number.isSafeInteger(id))
     return NextResponse.json({ error: "Repository required" }, { status: 400 });
-  const { data: connection, error } = await adminDatabase()
-    .from("chair_repository_connections")
-    .select("workspace_id,webhook_secret,repository")
-    .eq("repository_id", id)
-    .maybeSingle();
-  if (error)
+  let connection;
+  try {
+    const result = await adminDatabase()
+      .from("chair_repository_connections")
+      .select("workspace_id,webhook_secret,repository")
+      .eq("repository_id", id)
+      .maybeSingle();
+    if (result.error) throw result.error;
+    connection = result.data;
+  } catch {
     return NextResponse.json(
       { error: "Webhook storage unavailable" },
       { status: 503 },
     );
+  }
   if (
     !connection ||
     !verifySignature(
