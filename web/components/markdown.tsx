@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { CodeBlock } from "./code-block";
 import "./markdown.css";
 
 // Small markdown renderer for AI chat replies. It builds React elements, never HTML strings,
@@ -50,11 +51,12 @@ export function Markdown({ text }: { text: string }) {
     if (!line.trim()) {
       i++;
     } else if (line.trimStart().startsWith("```")) {
+      const lang = line.trimStart().slice(3).trim().split(/\s/)[0] ?? "";
       const code: string[] = [];
       i++;
       while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++]);
       i++;
-      blocks.push(<pre key={key}><code>{code.join("\n")}</code></pre>);
+      blocks.push(<CodeBlock key={key} code={code.join("\n")} lang={lang} />);
     } else if (/^#{1,6}\s/.test(line)) {
       blocks.push(<p key={key} className="md-heading">{inline(line.replace(/^#+\s+/, ""))}</p>);
       i++;
