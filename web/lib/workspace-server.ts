@@ -283,9 +283,11 @@ export async function workspaceRequest(req: Request, parts: string[]) {
         .order("created_at"),
       db.from("contracts").select("*").eq("workspace_id", workspaceId).order("id").order("version", { ascending: false }),
       db.from("conflicts").select("*").eq("workspace_id", workspaceId),
+      db.rpc("chair_identity_workspace", {p_workspace:workspaceId}),
     ]);
     for (const r of results) check(r.error);
-    const [w, chats, members, invitations, legacyContracts, legacyConflicts] = results;
+    const [w, chats, members, invitations, legacyContracts, legacyConflicts, identity] = results;
+    const usernames = new Map<string,string|null>((identity.data?.usernames ?? []).map((p:Row)=>[p.userId,p.username]));
     let contractRows: Row[];
     let conflictRows: Row[];
     {
@@ -327,10 +329,11 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       members: ((members.data as Row[]) ?? []).map((r) => ({
         userId: r.user_id,
         displayName: r.display_name,
+        username: usernames.get(r.user_id) ?? null,
         role: r.role,
         joinedAt: r.joined_at,
       })),
-      invitations: ((invitations.data as Row[]) ?? []).map(invitation),
+      invitations: [...((invitations.data as Row[]) ?? []).map(invitation),...(identity.data?.invitations ?? [])],
       contracts: contractRows,
       conflicts: conflictRows,
     };
@@ -412,6 +415,16 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     if (role !== "owner")
       throw new WorkspaceError(403, "Only owners can invite people.");
     const body = await readBody(req);
+    if (body.username !== undefined) {
+      const {normalizeUsername,usernameError}=await import('./usernames');
+      const {identityError}=await import('./identity-server');
+      if(body.email!==undefined || typeof body.username!=='string' || usernameError(body.username))throw new WorkspaceError(400,'Enter one valid username.');
+      const token=randomBytes(32).toString('hex');
+      const result=await db.rpc('chair_invite_username',{p_workspace:workspaceId,p_username:normalizeUsername(body.username),p_token_hash:createHash('sha256').update(token).digest('hex')});
+      identityError(result.error);
+      const {reused,...saved}=result.data;
+      return {invitation:{...saved,...(!reused?{inviteUrl:shareUrl(`/workspaces#invite=${token}`,req.url)}:{})}};
+    }
     const email = textField(body, "email", 254).toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       throw new WorkspaceError(400, "Enter a valid email address.");
@@ -438,10 +451,11 @@ export async function acceptInvitation(req: Request) {
   const token = textField(body, "token", 64, "invite code");
   if (!/^[a-f0-9]{64}$/.test(token))
     throw new WorkspaceError(400, "This invite link is not valid. Ask for a new one.");
-  const { data, error } = await db.rpc("chair_accept_invitation", {
+  const { data, error } = await db.rpc("chair_accept_any_invitation", {
     p_token_hash: createHash("sha256").update(token).digest("hex"),
   });
-  check(error);
+  const {identityError}=await import('./identity-server');
+  identityError(error);
   return { workspaceId: data as string };
 }
 

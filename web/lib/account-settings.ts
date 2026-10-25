@@ -1,19 +1,20 @@
+import {usernameError} from './usernames';
 type Metadata = Record<string, unknown> | null | undefined;
 export function profileFields(metadata: Metadata, email?: string) {
   return {
     displayName: typeof metadata?.displayName === "string" ? metadata.displayName : email?.split("@")[0] ?? "",
-    nickname: typeof metadata?.nickname === "string" ? metadata.nickname : "",
+    username: typeof metadata?.username === "string" ? metadata.username : "",
   };
 }
 export function accountName(metadata: Metadata, email?: string) {
   const fields=profileFields(metadata,email);
-  return fields.nickname.trim().slice(0,80) || fields.displayName.trim().slice(0,80) || "You";
+  return fields.displayName.trim().slice(0,80) || "You";
 }
-export function profileError(displayName: string,nickname: string) {
+export function profileError(displayName: string,username: string) {
   if (!displayName.trim()) return "Enter a display name.";
-  if (displayName.trim().length>80 || nickname.trim().length>80) return "Use no more than 80 characters for each name.";
-  if (/[\u0000-\u001f\u007f]/.test(displayName+nickname)) return "Use a single line for each name.";
-  return "";
+  if (displayName.trim().length>80) return "Use no more than 80 characters for your name.";
+  if (/[\u0000-\u001f\u007f]/.test(displayName)) return "Use a single line for your name.";
+  return usernameError(username);
 }
 export function accountError(error: {status?: number;code?: string} | null | undefined) {
   if (error?.status===429 || error?.code=== "over_email_send_rate_limit" || error?.code=== "over_request_rate_limit") return "Too many attempts. Wait a few minutes and try again.";

@@ -6,6 +6,8 @@ import {supabase} from "../lib/supabase";
 import {accountError,accountName,profileError,profileFields} from "../lib/account-settings";
 import {recoveryPasswordError} from "../lib/password-recovery-state";
 import "./account-settings.css";
+import {identityRequest} from '../lib/identity-client';
+import {normalizeUsername,type AccountProfile} from '../lib/usernames';
 
 type Section="profile"|"email"|"password";
 type Feedback={section:Section;error?:string;message?:string};
@@ -13,7 +15,9 @@ type Feedback={section:Section;error?:string;message?:string};
 export default function AccountSettings({user,onSaved}:{user:User;onSaved:()=>void}) {
   const initial=profileFields(user.user_metadata,user.email);
   const [displayName,setDisplayName]=useState(initial.displayName);
-  const [nickname,setNickname]=useState(initial.nickname);
+  const [username,setUsername]=useState("");
+  const [profileReady,setProfileReady]=useState(false);
+  const [profileAttempt,setProfileAttempt]=useState(0);
   const [email,setEmail]=useState(user.new_email || user.email || "");
   const [currentPassword,setCurrentPassword]=useState("");
   const [password,setPassword]=useState("");
@@ -24,6 +28,15 @@ export default function AccountSettings({user,onSaved}:{user:User;onSaved:()=>vo
   const [feedback,setFeedback]=useState<Feedback|null>(null);
   const mounted=useRef(false), pending=useRef(false), actor=useRef(user.id);
   const userId=user.id;
+
+  useEffect(()=>{
+    const ctrl=new AbortController();setProfileReady(false);
+    void identityRequest<{profile:AccountProfile}>('/api/account/profile',userId,undefined,ctrl.signal).then(({profile})=>{
+      if(ctrl.signal.aborted)return;
+      setDisplayName(profile.displayName);setUsername(profile.username??'');setProfileReady(true);
+    }).catch(()=>{if(!ctrl.signal.aborted)setFeedback({section:'profile',error:'Could not load your profile. Try again.'});});
+    return ()=>ctrl.abort();
+  },[userId,profileAttempt]);
 
   useEffect(()=>{
     mounted.current=true;
@@ -54,13 +67,17 @@ export default function AccountSettings({user,onSaved}:{user:User;onSaved:()=>vo
   }
   function saveProfile(event:FormEvent) {
     event.preventDefault();
-    const error=profileError(displayName,nickname);
+    if(!profileReady)return;
+    const error=profileError(displayName,username);
     if(error){setFeedback({section:"profile",error});return;}
     void perform("profile",async()=>{
-      const result=await supabase.auth.updateUser({data:{displayName:displayName.trim(),nickname:nickname.trim()}});
-      if(!stillHere())return;
-      if(result.error){setFeedback({section:"profile",error:accountError(result.error)});return;}
-      setFeedback({section:"profile",message:"Profile saved."});onSaved();
+      try {
+        const {profile}=await identityRequest<{profile:AccountProfile}>('/api/account/profile',userId,{displayName:displayName.trim(),username:normalizeUsername(username)});
+        if(!stillHere())return;
+        setUsername(profile.username??'');setDisplayName(profile.displayName);
+        setFeedback({section:"profile",message:"Profile saved."});onSaved();
+        await supabase.auth.refreshSession();
+      }catch(error){if(stillHere())setFeedback({section:'profile',error:error instanceof Error?error.message:'Could not save profile.'});}
     });
   }
   function saveEmail(event:FormEvent) {
@@ -101,14 +118,15 @@ export default function AccountSettings({user,onSaved}:{user:User;onSaved:()=>vo
   return <div className="account-settings">
     <section className="wp-page-heading"><h1>Account</h1></section>
     <section className="account-card" aria-labelledby="profile-heading">
-      <div className="account-card-heading"><span className="wp-avatar" aria-hidden="true">{accountName({displayName,nickname},user.email).charAt(0).toUpperCase()}</span><div><h2 id="profile-heading">Profile</h2><p>Choose how your team sees you.</p></div></div>
+      <div className="account-card-heading"><span className="wp-avatar" aria-hidden="true">{accountName({displayName},user.email).charAt(0).toUpperCase()}</span><div><h2 id="profile-heading">Profile</h2><p>Choose how your team sees you.</p></div></div>
       <form onSubmit={saveProfile}>
         <div className="account-fields">
-          <label className="wp-field">Display name<input autoComplete="name" required maxLength={80} value={displayName} disabled={!!busy} onChange={event=>setDisplayName(event.target.value)} /></label>
-          <label className="wp-field">Nickname <span className="account-optional">Optional</span><input autoComplete="nickname" maxLength={80} value={nickname} disabled={!!busy} onChange={event=>setNickname(event.target.value)} aria-describedby="nickname-help" /></label>
+          <label className="wp-field">Display name<input autoComplete="name" required maxLength={80} value={displayName} disabled={!!busy||!profileReady} onChange={event=>setDisplayName(event.target.value)} /></label>
+          <label className="wp-field">Username<input autoComplete="username" autoCapitalize="none" spellCheck={false} required maxLength={31} value={username} placeholder="@carterdestreel" disabled={!!busy||!profileReady} onChange={event=>setUsername(event.target.value)} aria-describedby="username-help" /></label>
         </div>
-        <p id="nickname-help" className="account-help">A nickname replaces your display name in workspaces.</p>
-        {status("profile")}<button className="wp-primary" disabled={!!busy} type="submit">{busy==="profile"?"Saving…":"Save profile"}</button>
+        <p id="username-help" className="account-help">People invite you using @{normalizeUsername(username)||'yourusername'}. Use 3–30 letters, numbers, or underscores.</p>
+        {status("profile")}<button className="wp-primary" disabled={!!busy||!profileReady} type="submit">{busy==="profile"?"Saving…":"Save profile"}</button>
+        {!profileReady && <button type="button" className="wp-text-button" onClick={()=>setProfileAttempt(n=>n+1)}>Reload profile</button>}
       </form>
     </section>
     <section className="account-card" aria-labelledby="email-heading">

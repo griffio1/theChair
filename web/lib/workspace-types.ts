@@ -27,13 +27,15 @@ export interface WorkspaceChat {
 export interface WorkspaceMember {
   userId: string;
   displayName: string;
+  username?: string | null;
   role: "owner" | "member";
   joinedAt: string;
 }
 export interface WorkspaceInvitation {
   id: string;
-  email: string;
-  status: "pending" | "accepted" | "expired";
+  email?: string;
+  username?: string;
+  status: "pending" | "accepted" | "expired" | "declined";
   expiresAt: string;
   inviteUrl?: string;
 }

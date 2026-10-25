@@ -16,12 +16,24 @@ members can view saved information. Concurrent edits return a conflict instead
 of overwriting another owner's save. Deadlines are stored in UTC and displayed
 in each user's local time; the countdown is recalculated after a tab resumes.
 
-**Account**, beside the profile at the bottom left, edits display name, optional
-nickname, email and password using Supabase Auth. A nickname takes precedence in
-member lists, reactions and new messages; old messages retain their original
-author names. Email changes follow the project's confirmation settings. Password
-changes support the current password and reauthentication codes. Passwords and
-codes are never stored in browser storage by this feature.
+**Account**, beside the profile at the bottom left, edits display name, unique
+@username, email and password. New accounts choose a username during signup;
+existing accounts can choose one in Account. Usernames use 3?30 letters, numbers
+or underscores, are case-insensitive, and are separate from display names.
+Nicknames no longer override names. Old messages retain their original author names.
+Email changes follow the project's confirmation settings. Password changes support
+the current password and reauthentication codes.
+
+Owners invite people by @username in **People**. Recipients see a badge on the
+top-right bell and can accept or decline there. Opening the inbox marks displayed
+invites as read; it never accepts them. Invites follow the recipient's account even
+if their username changes, expire after seven days, and grant only member access.
+Copying a link is a secondary option; existing email invite links still work.
+
+Run `sql/usernames-inbox.sql` after `sql/account-profiles.sql` and
+`sql/production-limits.sql` before deploying this feature. Validate a live setup
+with `node --env-file=web/.env.local --import tsx web/scripts/check-usernames-inbox.ts`
+from the repository root. It creates and removes only disposable test records.
 
 ## Access and data
 

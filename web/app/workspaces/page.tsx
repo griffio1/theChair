@@ -12,6 +12,9 @@ import { supabase } from "../../lib/supabase";
 import { AppearancePicker } from "../../components/appearance-picker";
 import TeamDashboard from "../../components/team-dashboard";
 import WorkspaceConnections from "../../components/workspace-connections";
+import NotificationInbox from '../../components/notification-inbox';
+import {normalizeUsername,usernameError,type AccountProfile} from '../../lib/usernames';
+import {identityRequest} from '../../lib/identity-client';
 import AccountSettings from "../../components/account-settings";
 import ProjectInfo from "../../components/project-info";
 import {MessageInput} from "../../components/message-input";
@@ -99,6 +102,7 @@ function AccountForm({ invited }: { invited: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [username,setUsername]=useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -115,12 +119,18 @@ function AccountForm({ invited }: { invited: boolean }) {
     setError("");
     setNotice("");
     try {
+      if(signup){
+        const invalid=usernameError(username);if(invalid)throw new Error(invalid);
+        const check=await fetch(`/api/usernames/${encodeURIComponent(normalizeUsername(username))}`,{signal:AbortSignal.timeout(15000),cache:"no-store"});
+        if(!check.ok)throw new Error("Could not check username. Try again.");
+        if(!(await check.json()).available)throw new Error("That username is taken. Choose another.");
+      }
       const result = signup
         ? await supabase.auth.signUp({
             email: email.trim(),
             password,
             options: {
-              data: { displayName: name.trim() },
+              data: { displayName: name.trim(),username:normalizeUsername(username) },
               emailRedirectTo: `${location.origin}/workspaces`,
               captchaToken: captcha?.token,
             },
@@ -153,7 +163,7 @@ function AccountForm({ invited }: { invited: boolean }) {
     <div className="wp-account-card">
       <span className="wp-account-symbol"><HubIcon name="spark" size={25} /></span>
       <h1>{signup ? "Create account" : "Sign in"}</h1>
-      {invited && <p className="wp-dialog-copy">Use the email on your invite.</p>}
+      {invited && <p className="wp-dialog-copy">Sign in to the account that received the invite.</p>}
       <form onSubmit={submit}>
         {signup && (
           <label className="wp-field">
@@ -167,6 +177,7 @@ function AccountForm({ invited }: { invited: boolean }) {
             />
           </label>
         )}
+        {signup&&<label className="wp-field">Username<input required autoComplete="username" autoCapitalize="none" spellCheck={false} maxLength={31} placeholder="@carterdestreel" value={username} onChange={e=>setUsername(e.target.value)} /></label>}
         <label className="wp-field">
           Email
           <input
@@ -274,7 +285,15 @@ export default function Workspaces() {
   const draftImages = drafts[scope]?.images ?? [];
   const uploading = uploadScope === scope;
   useEffect(() => { setUploadScope(""); }, [scope, userId]);
-  const me = accountName(session?.user.user_metadata, session?.user.email);
+  const [profile,setProfile]=useState<AccountProfile|null>(null);
+  useEffect(()=>{
+    setProfile(null);if(!userId)return;
+    const ctrl=new AbortController();
+    void identityRequest<{profile:AccountProfile}>('/api/account/profile',userId,undefined,ctrl.signal).then(r=>{if(!ctrl.signal.aborted)setProfile(r.profile);}).catch(()=>{});
+    return ()=>ctrl.abort();
+  },[userId,refresh]);
+  const ownProfile=profile?.userId===userId?profile:null;
+  const me = ownProfile?.displayName || accountName(session?.user.user_metadata, session?.user.email);
 
   useEffect(() => {
     let active = true;
@@ -573,16 +592,13 @@ export default function Workspaces() {
       } else if (modal === "invite") {
         const result = await api<{ invitation: WorkspaceInvitation }>(
           `/api/workspaces/${activeSpace}/invitations`,
-          { email: field.trim() },
+          { username: normalizeUsername(field) },
         );
         if (actor !== userRef.current) return;
-        if (!result.invitation.inviteUrl)
-          throw new Error("Invite link missing. Try again.");
-        setInviteUrl(
-          new URL(result.invitation.inviteUrl, location.origin).href,
-        );
-        setModal("share");
+        setInviteUrl(result.invitation.inviteUrl ? new URL(result.invitation.inviteUrl, location.origin).href : "");
+        setModal(null);
         navigate("people");
+        setNotice("Invite sent.");
       }
       setRefresh((n) => n + 1);
     } catch (e) {
@@ -776,7 +792,7 @@ export default function Workspaces() {
                 </span>
                 <span>
                   <strong>{me}</strong>
-                  <small>Signed in</small>
+                  <small>{ownProfile?.username?`@${ownProfile.username}`:"Signed in"}</small>
                 </span>
               </div>
               <button className={`wp-account-button ${view === "account" ? "active" : ""}`}
@@ -811,6 +827,7 @@ export default function Workspaces() {
                       : "Issues"}
             </strong>
           </div>
+          {userId&&<NotificationInbox key={userId} userId={userId} onAccepted={id=>{setRefresh(n=>n+1);navigate("project",id);}} />}
           <AppearancePicker />
           {session && (
             <button
@@ -886,6 +903,8 @@ export default function Workspaces() {
                   view={view === "contracts" || view === "conflicts" ? view : "chat"}
                   active={["team", "contracts", "conflicts"].includes(view)} onNavigate={navigate} />
               </div>}
+              {ownProfile&&!ownProfile.username&&view!=="account"&&<div className="wp-notice"><button className="wp-text-button" onClick={()=>navigate("account")}>Choose your @username</button></div>}
+              {inviteUrl&&view==="people"&&<button className="wp-text-button" onClick={()=>setModal("share")}>Copy invite link</button>}
               <div className="wp-view" key={view}>
               {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "project" && current ? <ProjectInfo key={`${session.user.id}/${activeSpace}`} workspace={current.workspace} userId={session.user.id} onSaved={project => {
                 setSpaces(previous => previous.map(s => s.id === project.workspaceId ? {...s,name:project.name,slug:project.slug} : s));
@@ -1001,7 +1020,7 @@ export default function Workspaces() {
                             {m.userId === userId ? " (you)" : ""}
                           </strong>
                           <small>
-                            Joined {new Date(m.joinedAt).toLocaleDateString()}
+                            {m.username?`@${m.username} ? `:""}Joined {new Date(m.joinedAt).toLocaleDateString()}
                           </small>
                         </div>
                         <span className="wp-badge">{m.role}</span>
@@ -1046,7 +1065,7 @@ export default function Workspaces() {
                               <HubIcon name="mail" size={18} />
                             </span>
                             <div>
-                              <strong>{i.email}</strong>
+                              <strong>{i.username?`@${i.username}`:i.email}</strong>
                               <small>
                                 {i.status === "pending"
                                   ? `Expires ${new Date(i.expiresAt).toLocaleDateString()}`
@@ -1254,18 +1273,19 @@ export default function Workspaces() {
             </>
           ) : (
             <form onSubmit={mutate}>
-              {modal === "invite" && <p className="wp-dialog-copy">You’ll get a link to share. A new invite replaces any earlier link for that email.</p>}
+              {modal === "invite" && <p className="wp-dialog-copy">They?ll get an invite in their notifications.</p>}
               <label className="wp-field">
                 {modal === "workspace"
                   ? "Workspace name"
                   : modal === "chat"
                     ? "Chat name"
-                    : "Email"}
+                    : "Username"}
                 <input
                   autoFocus
-                  type={modal === "invite" ? "email" : "text"}
+                  type="text"
+                  placeholder={modal === "invite" ? "@username" : undefined}
                   required
-                  maxLength={modal === "invite" ? 254 : 80}
+                  maxLength={modal === "invite" ? 31 : 80}
                   disabled={busy}
                   value={field}
                   onChange={(e) => setField(e.target.value)}
