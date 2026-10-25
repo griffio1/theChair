@@ -77,13 +77,13 @@ async function api<T>(
     throw new ApiError(
       typeof result.error === "string"
         ? result.error
-        : "The request failed. Please try again.",
+        : "Couldn’t finish. Try again.",
       response.status,
     );
   return result as T;
 }
 const errorText = (e: unknown) =>
-  e instanceof Error ? e.message : "Something went wrong. Please try again.";
+  e instanceof Error ? e.message : "Couldn’t finish. Try again.";
 
 function AccountForm({ invited }: { invited: boolean }) {
   const [signup, setSignup] = useState(false);
@@ -116,7 +116,7 @@ function AccountForm({ invited }: { invited: boolean }) {
       setPassword("");
       if (signup && !result.data.session)
         setNotice(
-          "Check your email to confirm your account, then sign in here. Your invitation will wait in this tab.",
+          "Confirm your email, then sign in. Your invite stays in this tab.",
         );
     } catch (e) {
       setError(errorText(e));
@@ -126,21 +126,13 @@ function AccountForm({ invited }: { invited: boolean }) {
   }
   return (
     <div className="wp-auth-layout">
-      <section className="wp-auth-story">
-        <div className="wp-eyebrow"><span className="wp-status-dot" /> HUMANS + AGENTS. ONE TEAM.</div>
-        <h2>Big ideas.<br />Same page<span>.</span></h2>
+      <div className="wp-auth-story" aria-hidden="true">
         <FlowArt className="wp-auth-art" />
-        <div className="wp-auth-story-foot"><span className="wp-story-mark"><BrandMark size={24} /></span><p>A home for your people, your plans,<br />and whatever you build next.</p></div>
-      </section>
+      </div>
     <div className="wp-account-card">
       <span className="wp-account-symbol"><HubIcon name="spark" size={25} /></span>
-      <div className="wp-eyebrow">YOUR NEXT CHAPTER</div>
-      <h1>{signup ? "Make yourself at home." : "Take your seat."}</h1>
-      <p className="wp-dialog-copy">
-        {invited
-          ? "Sign in with the email address that received the invitation to join your team."
-          : "Sign in to see your workspaces, conversations, and people."}
-      </p>
+      <h1>{signup ? "Create account" : "Sign in"}</h1>
+      {invited && <p className="wp-dialog-copy">Use the email on your invite.</p>}
       <form onSubmit={submit}>
         {signup && (
           <label className="wp-field">
@@ -155,7 +147,7 @@ function AccountForm({ invited }: { invited: boolean }) {
           </label>
         )}
         <label className="wp-field">
-          Email address
+          Email
           <input
             type="email"
             autoComplete="email"
@@ -187,7 +179,7 @@ function AccountForm({ invited }: { invited: boolean }) {
           </p>
         )}
         <button className="wp-primary" disabled={busy} type="submit">
-          {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}<HubIcon name="arrow" size={16} />
+          {busy ? (signup ? "Creating…" : "Signing in…") : signup ? "Create account" : "Sign in"}<HubIcon name="arrow" size={16} />
         </button>
         <button
           className="wp-text-button wp-auth-switch"
@@ -200,8 +192,8 @@ function AccountForm({ invited }: { invited: boolean }) {
           }}
         >
           {signup
-            ? "Already have an account? Sign in"
-            : "New here? Create an account"}
+            ? "Sign in instead"
+            : "Create an account"}
         </button>
       </form>
     </div>
@@ -496,7 +488,7 @@ export default function Workspaces() {
         setActiveSpace(result.workspace.id);
         setActiveChat(result.chat.id);
         setView("chat");
-        setNotice("Workspace created. Invite your team when you’re ready.");
+        setNotice("Workspace created.");
         setModal(null);
       } else if (modal === "chat") {
         const result = await api<{ chat: WorkspaceChat }>(
@@ -525,7 +517,7 @@ export default function Workspaces() {
         );
         if (actor !== userRef.current) return;
         if (!result.invitation.inviteUrl)
-          throw new Error("The invitation link was missing. Try again.");
+          throw new Error("Invite link missing. Try again.");
         setInviteUrl(
           new URL(result.invitation.inviteUrl, location.origin).href,
         );
@@ -565,7 +557,7 @@ export default function Workspaces() {
     } catch (e) {
       if (actor === userRef.current && scopeRef.current === key)
         setError(
-          `${errorText(e)} Your draft is still here; retrying won’t duplicate the message.`,
+          `${errorText(e)} Your draft is still here. Retrying won’t send it twice.`,
         );
     } finally {
       setBusy(false);
@@ -582,7 +574,7 @@ export default function Workspaces() {
       });
       if (actor !== userRef.current) return;
       setRefresh((n) => n + 1);
-      setNotice(`Member role changed to ${role}.`);
+      setNotice(`Role changed to ${role}.`);
     } catch (e) {
       if (actor === userRef.current) setError(errorText(e));
     } finally {
@@ -606,7 +598,7 @@ export default function Workspaces() {
       } catch {}
       chooseSpace(result.workspaceId);
       setRefresh((n) => n + 1);
-      setNotice("You’ve joined the workspace.");
+      setNotice("Workspace joined.");
     } catch (e) {
       if (actor === userRef.current) setError(errorText(e));
     } finally {
@@ -639,7 +631,7 @@ export default function Workspaces() {
         {session && accountReady && (
           <>
             <label className="wp-space-picker">
-              <span>SWITCH WORKSPACE</span>
+              <span>WORKSPACE</span>
               <select
                 aria-label="Switch workspace"
                 value={activeSpace}
@@ -647,7 +639,7 @@ export default function Workspaces() {
                 onChange={(e) => chooseSpace(e.target.value)}
               >
                 {!spaces.length && (
-                  <option value="">Your first workspace</option>
+                  <option value="">No workspaces</option>
                 )}
                 {spaces.map((s) => (
                   <option value={s.id} key={s.id}>
@@ -659,10 +651,10 @@ export default function Workspaces() {
             <nav className="wp-nav" aria-label="Views">
               {(
                 [
-                  ["home", "home", "All workspaces"],
-                  ["people", "people", "People & invites"],
-                  ["contracts", "contracts", "Contracts"],
-                  ["conflicts", "conflicts", "Conflicts"],
+                  ["home", "home", "Workspaces"],
+                  ["people", "people", "People"],
+                  ["contracts", "contracts", "Agreements"],
+                  ["conflicts", "conflicts", "Issues"],
                 ] as const
               ).map(([key, icon, label]) => (
                 <button
@@ -680,12 +672,12 @@ export default function Workspaces() {
               ))}
               {activeSpace === teamWorkspace && teamWorkspace && (
                 <a href={`/workspaces/${activeSpace}/team`}>
-                  <span className="wp-glyph"><HubIcon name="spark" /></span>Team AI chat<HubIcon name="arrow" size={13} />
+                  <span className="wp-glyph"><HubIcon name="spark" /></span>Team chat<HubIcon name="arrow" size={13} />
                 </a>
               )}
             </nav>
             <div className="wp-section-label">
-              <span>CONVERSATIONS</span>
+              <span>CHATS</span>
               <button
                 className="wp-icon-button"
                 disabled={busy || !current}
@@ -695,7 +687,7 @@ export default function Workspaces() {
                 <HubIcon name="plus" size={17} />
               </button>
             </div>
-            <nav className="wp-threads" aria-label="Conversations">
+            <nav className="wp-threads" aria-label="Chats">
               {current?.chats.map((c) => (
                 <button
                   key={c.id}
@@ -752,7 +744,7 @@ export default function Workspaces() {
               className="wp-legacy-link"
               href={`/workspaces/${activeSpace}/team`}
             >
-              Team agreements & AI chat <HubIcon name="arrow" size={12} />
+              Team chat <HubIcon name="arrow" size={12} />
             </a>
           )}
         </div>
@@ -763,15 +755,15 @@ export default function Workspaces() {
             <span>{space?.name ?? "theChair"}</span>
             <span className="wp-breadcrumb-divider" aria-hidden="true">/</span>
             <strong>
-              {!session ? "Welcome" : view === "home"
+              {!session ? "Sign in" : view === "home"
                 ? "Workspaces"
                 : view === "chat"
-                  ? (chat?.title ?? "Conversation")
+                  ? (chat?.title ?? "Chat")
                   : view === "people"
                     ? "People"
                     : view === "contracts"
-                      ? "Contracts"
-                      : "Conflicts"}
+                      ? "Agreements"
+                      : "Issues"}
             </strong>
           </div>
           <AppearancePicker />
@@ -798,7 +790,7 @@ export default function Workspaces() {
                     setRefresh((n) => n + 1);
                   }}
                 >
-                  Retry loading
+                  Retry
                 </button>
               </div>
             </div>
@@ -817,10 +809,9 @@ export default function Workspaces() {
               {inviteToken && (
                 <div className="wp-join-banner">
                   <div>
-                    <strong>You have an invitation</strong>
+                    <strong>Workspace invite</strong>
                     <p>
-                      Accept with the verified email it was addressed to. Signed
-                      in as {session.user.email}.
+                      Use the verified email on the invite. You’re signed in as {session.user.email}.
                     </p>
                   </div>
                   <button
@@ -828,7 +819,7 @@ export default function Workspaces() {
                     disabled={busy}
                     onClick={() => void join()}
                   >
-                    {busy ? "Please wait…" : "Accept invitation"}
+                    {busy ? "Joining…" : "Join workspace"}
                   </button>
                   <button
                     className="wp-text-button"
@@ -849,13 +840,7 @@ export default function Workspaces() {
                 <>
                   <section className="wp-page-heading wp-home-hero">
                     <div className="wp-home-copy">
-                      <div className="wp-eyebrow"><span className="wp-status-dot" /> YOUR SPACE TO BUILD</div>
-                      <h1>
-                        Good work.<br />Great company<span>.</span>
-                      </h1>
-                      <p>
-                        Bring your people, plans, and agents together.<br className="wp-desktop-break" /> The next good idea starts here.
-                      </p>
+                      <h1>Workspaces</h1>
                     </div>
                     <button
                       className="wp-primary"
@@ -867,15 +852,12 @@ export default function Workspaces() {
                     <FlowArt className="wp-home-art" />
                   </section>
                   <div className="wp-list-toolbar">
-                    <h2>
-                      Your workspaces <span>{spaces.length}</span>
-                    </h2>
                     <label className="wp-search">
                       <HubIcon name="search" size={16} />
                       <input
                         type="search"
                         aria-label="Search workspaces"
-                        placeholder="Find a workspace…"
+                        placeholder="Search workspaces"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                       />
@@ -901,16 +883,13 @@ export default function Workspaces() {
                           </div>
                           <div className="wp-space-card-body">
                             <h3>{s.name}</h3>
-                            <p>
-                              Conversations, people, and shared understanding.
-                            </p>
                             <div>
                               <span>
                                 {s.role === "owner"
-                                  ? "You own this workspace"
-                                  : "Team member"}
+                                  ? "Owner"
+                                  : "Member"}
                               </span>
-                            <span className="wp-card-open">Enter workspace <HubIcon name="arrow" size={13} /></span>
+                            <span className="wp-card-open">Open <HubIcon name="arrow" size={13} /></span>
                             </div>
                           </div>
                         </button>
@@ -922,12 +901,7 @@ export default function Workspaces() {
                           onClick={() => open("workspace")}
                         >
                           <span><HubIcon name="plus" size={26} /></span>
-                          <h3>
-                            {spaces.length
-                              ? "Make room for something new"
-                              : "Create your first workspace"}
-                          </h3>
-                          <p>Start a project and invite your people.</p>
+                          <h3>New workspace</h3>
                         </button>
                       )}
                     </div>
@@ -947,18 +921,14 @@ export default function Workspaces() {
               ) : !current && view !== "chat" ? (
                 <div className="wp-empty" role="status">
                   {error
-                    ? "This workspace couldn’t be loaded."
+                    ? "Couldn’t load this workspace."
                     : "Loading workspace…"}
                 </div>
               ) : view === "people" && current ? (
                 <>
                   <section className="wp-page-heading">
                     <div>
-                      <div className="wp-eyebrow">YOUR PEOPLE, YOUR MOMENTUM</div>
-                      <h1>
-                        Built with good people<span>.</span>
-                      </h1>
-                      <p>Everyone building in {current.workspace.name}.</p>
+                      <h1>People</h1>
                     </div>
                     {current.workspace.role === "owner" && (
                       <button
@@ -966,7 +936,7 @@ export default function Workspaces() {
                         disabled={busy}
                         onClick={() => open("invite")}
                       >
-                        <HubIcon name="plus" size={16} />Invite someone
+                        <HubIcon name="plus" size={16} />Invite
                       </button>
                     )}
                   </section>
@@ -1008,8 +978,8 @@ export default function Workspaces() {
                             }
                             title={
                               m.role === "owner"
-                                ? "Keep at least one workspace owner"
-                                : "Owners can invite people, connect repositories and approve changes"
+                                  ? "At least one owner must remain"
+                                  : "Owners can invite people, connect GitHub and approve agreements"
                             }
                           >
                             {m.role === "owner" ? "Make member" : "Make owner"}
@@ -1021,7 +991,7 @@ export default function Workspaces() {
                   {current.workspace.role === "owner" ? (
                     <section className="wp-people-panel">
                       <div className="wp-panel-heading">
-                        <h2>Invitations</h2>
+                        <h2>Invites</h2>
                         <span>{current.invitations.length}</span>
                       </div>
                       {current.invitations.length ? (
@@ -1043,23 +1013,19 @@ export default function Workspaces() {
                         ))
                       ) : (
                         <div className="wp-empty">
-                          <h3>Better together</h3>
-                          <p>
-                            Create an invitation link for your teammate’s email
-                            address. You choose how to share it.
-                          </p>
+                          <h3>No invites</h3>
                           <button
                             className="wp-secondary"
                             onClick={() => open("invite")}
                           >
-                            Invite someone
+                            Invite
                           </button>
                         </div>
                       )}
                     </section>
                   ) : (
                     <p className="wp-dialog-copy">
-                      Workspace owners can invite more people.
+                      Owners can invite people.
                     </p>
                   )}
                 </>
@@ -1067,19 +1033,17 @@ export default function Workspaces() {
                 <>
                   <section className="wp-page-heading">
                     <div>
-                      <div className="wp-eyebrow">{current.workspace.name}</div>
                       <h1>
                         {view === "contracts"
-                          ? "Your shared agreements."
-                          : "Keep everyone aligned."}
+                          ? "Agreements"
+                          : "Issues"}
                       </h1>
-                      <p>Only this workspace’s {view} appear here.</p>
                       {activeSpace === teamWorkspace && (
                         <a
                           className="wp-secondary"
                           href={`/workspaces/${activeSpace}/team`}
                         >
-                          Open team agreements & approvals
+                          Team chat
                         </a>
                       )}
                     </div>
@@ -1097,7 +1061,7 @@ export default function Workspaces() {
                                 {c.method} {c.path}
                               </strong>
                               <small>
-                                {c.name} · v{c.version} · {c.status}
+                                {c.name} · Version {c.version} · {c.status === "proposed" ? "Needs approval" : c.status === "superseded" ? "Replaced" : "Approved"}
                               </small>
                               <p>{c.response.map((f) => f.name).join(", ")}</p>
                             </div>
@@ -1105,18 +1069,13 @@ export default function Workspaces() {
                         ))
                       ) : (
                         <div className="wp-empty">
-                          <h3>No contracts in this workspace yet</h3>
-                          <p>
-                            {activeSpace === teamWorkspace
-                              ? "Propose your first agreement in the team AI chat."
-                              : "No repository agent is connected to this workspace yet."}
-                          </p>
+                          <h3>No agreements yet</h3>
                           {activeSpace === teamWorkspace && (
                             <a
                               className="wp-secondary"
                               href={`/workspaces/${activeSpace}/team`}
                             >
-                              Open team agreements ↗
+                              Team chat <HubIcon name="arrow" size={13} />
                             </a>
                           )}
                         </div>
@@ -1127,7 +1086,7 @@ export default function Workspaces() {
                           <div>
                             <strong>{c.summary}</strong>
                             <small>
-                              {c.status} · {c.severity}
+                              {c.status === "open" ? "Open" : c.status === "approved" ? "Agreement approved" : "Dismissed"} · {c.severity === "block" ? "Must fix" : "Warning"}
                             </small>
                             {c.evidence?.[0] && (
                               <p>
@@ -1142,18 +1101,13 @@ export default function Workspaces() {
                       ))
                     ) : (
                       <div className="wp-empty">
-                        <h3>No workspace conflict reports</h3>
-                        <p>
-                          {activeSpace === teamWorkspace
-                            ? "Your agents have no conflict reports for this workspace."
-                            : "No repository agent is connected to this workspace yet."}
-                        </p>
+                        <h3>No issues reported</h3>
                         {activeSpace === teamWorkspace && (
                           <a
                             className="wp-secondary"
                             href={`/workspaces/${activeSpace}/team`}
                           >
-                            View team activity ↗
+                            Team chat <HubIcon name="arrow" size={13} />
                           </a>
                         )}
                       </div>
@@ -1165,12 +1119,9 @@ export default function Workspaces() {
                   <section className="wp-chat-panel">
                     <header className="wp-chat-heading">
                       <div>
-                        <div className="wp-eyebrow">
-                          {current?.workspace.name ?? space?.name ?? "Your workspace"}
-                        </div>
-                        <h1>{chat?.title ?? "Conversation"}</h1>
+                        <h1>{chat?.title ?? "Chat"}</h1>
                         <p>
-                          <span className={`wp-status-dot ${syncState === "Synced" ? "is-synced" : ""}`} />{syncState} · A conversation with your team
+                          <span className={`wp-status-dot ${syncState === "Synced" ? "is-synced" : ""}`} />{syncState === "Synced" ? "Up to date" : syncState === "Retrying" ? "Reconnecting…" : "Connecting…"}
                         </p>
                       </div>
                       <button
@@ -1183,7 +1134,7 @@ export default function Workspaces() {
                     </header>
                     <div className="wp-messages" aria-busy={loadingMessages}>
                       {(loadingMessages || !activeChat) && !visibleMessages.length ? (
-                        <div className="chat-skeleton" role="status" aria-label="Loading conversation">
+                        <div className="chat-skeleton" role="status" aria-label="Loading chat">
                           <div /><div /><div />
                         </div>
                       ) : visibleMessages.length ? (
@@ -1213,22 +1164,7 @@ export default function Workspaces() {
                       ) : (
                         <div className="wp-empty">
                           <span className="wp-empty-symbol"><HubIcon name="spark" size={26} /></span>
-                          <h2>Start something together</h2>
-                          <p>
-                            Share a plan, ask a question, or welcome your team.
-                            Messages are shared with this workspace’s members.
-                          </p>
-                          <div className="wp-prompts">
-                            {[
-                              "What are we building?",
-                              "Let’s plan the login flow",
-                              "What should we tackle next?",
-                            ].map((p) => (
-                              <button key={p} onClick={() => updateDraft(p)}>
-                                {p}<HubIcon name="arrow" size={12} />
-                              </button>
-                            ))}
-                          </div>
+                          <h2>No messages yet</h2>
                         </div>
                       )}
                       <div ref={bottom} />
@@ -1242,8 +1178,8 @@ export default function Workspaces() {
                       }}
                     >
                       <textarea
-                        aria-label={`Message in ${chat?.title ?? "this conversation"}`}
-                        placeholder="Share a plan. Start a conversation."
+                        aria-label={`Message in ${chat?.title ?? "this chat"}`}
+                        placeholder="Write a message"
                         rows={3}
                         maxLength={10000}
                         disabled={!chat || busy}
@@ -1268,13 +1204,13 @@ export default function Workspaces() {
                           setDrafts(items => ({ ...items, [scope]: { body: items[scope]?.body ?? "", images, clientMessageId: crypto.randomUUID() } }));
                         }} />
                       <div>
-                        <span>Shared with workspace members</span>
+                        <span>Workspace members only</span>
                         <button
                           className="wp-primary"
                           type="submit"
                           disabled={busy || uploading || !chat || (!draft.trim() && !draftImages.length)}
                         >
-                          {busy ? "Sending…" : "Send message"}<HubIcon name="send" size={16} />
+                          {busy ? "Sending…" : "Send"}<HubIcon name="send" size={16} />
                         </button>
                       </div>
                     </form>
@@ -1285,18 +1221,14 @@ export default function Workspaces() {
                   <aside className="wp-context">
                     <FlowArt className="wp-context-art" />
                     <span className="wp-context-icon"><HubIcon name="spark" size={25} /></span>
-                    <h2>On the same page.</h2>
-                    <p>
-                      A place for your people and the ideas you’re building
-                      together.
-                    </p>
+                    <h2>Workspace</h2>
                     <dl>
                       <div>
                         <dt>People</dt>
                         <dd>{current?.members.length ?? "…"}</dd>
                       </div>
                       <div>
-                        <dt>Conversations</dt>
+                        <dt>Chats</dt>
                         <dd>{current?.chats.length ?? "…"}</dd>
                       </div>
                     </dl>
@@ -1305,17 +1237,12 @@ export default function Workspaces() {
                       disabled={busy}
                       onClick={() => setView("people")}
                     >
-                      People & invites<HubIcon name="arrow" size={14} />
+                      People<HubIcon name="arrow" size={14} />
                     </button>
                     <div className="wp-context-note">
-                      <strong>Team conversation</strong>
-                      <p>
-                        These conversations are shared only with this
-                        workspace’s members.
-                      </p>
                       {activeSpace === teamWorkspace && (
                         <a href={`/workspaces/${activeSpace}/team`}>
-                          Team agreements & AI chat ↗
+                          Team chat <HubIcon name="arrow" size={13} />
                         </a>
                       )}
                     </div>
@@ -1326,10 +1253,6 @@ export default function Workspaces() {
             </>
           )}
         </main>
-        <footer className="wp-footer">
-          theChair · Git merges code. We merge intent.
-          <span>Made for your next big idea<HubIcon name="spark" size={12} /></span>
-        </footer>
       </div>
       {modal && session && accountReady && (
         <dialog
@@ -1344,16 +1267,16 @@ export default function Workspaces() {
           <div className="wp-dialog-heading">
             <h2 id="wp-dialog-title">
               {modal === "workspace"
-                ? "Make room for your team"
+                ? "New workspace"
                 : modal === "chat"
-                  ? "Start a conversation"
+                  ? "New chat"
                   : modal === "invite"
-                    ? "Bring someone in"
-                    : "Your invitation is ready"}
+                    ? "Invite someone"
+                    : "Share invite"}
             </h2>
             <button
               className="wp-icon-button"
-              aria-label="Close dialog"
+              aria-label="Close"
               disabled={busy}
               onClick={() => setModal(null)}
             >
@@ -1363,21 +1286,19 @@ export default function Workspaces() {
           {modal === "share" ? (
             <>
               <p className="wp-dialog-copy">
-                Copy and share this link with {field}. They must sign in with
-                that verified email. The link expires in 7 days. No invitation
-                email was sent.
+                Share this link with {field}. They must sign in with that verified email.
+                It expires in 7 days. No email was sent.
               </p>
               {inviteUrl &&
                 ["localhost", "127.0.0.1", "[::1]"].includes(
                   new URL(inviteUrl).hostname,
                 ) && (
                   <p role="alert" className="wp-dialog-copy">
-                    This link only works on this computer. Open your deployed
-                    workspace to create a link your teammate can use.
+                    This link only works on this computer. Create a shareable link from your live site.
                   </p>
                 )}
               <label className="wp-field">
-                Invitation link
+                Invite link
                 <input
                   readOnly
                   value={inviteUrl}
@@ -1389,15 +1310,15 @@ export default function Workspaces() {
                 onClick={() => {
                   void navigator.clipboard
                     .writeText(inviteUrl)
-                    .then(() => setNotice("Invitation link copied."))
+                    .then(() => setNotice("Link copied."))
                     .catch(() =>
                       setFormError(
-                        "Clipboard unavailable. Select the link above and copy it manually.",
+                        "Couldn’t copy. Select the link and copy it.",
                       ),
                     );
                 }}
               >
-                Copy invitation link
+                Copy link
               </button>
               <button
                 className="wp-text-button wp-auth-switch"
@@ -1409,19 +1330,13 @@ export default function Workspaces() {
             </>
           ) : (
             <form onSubmit={mutate}>
-              <p className="wp-dialog-copy">
-                {modal === "workspace"
-                  ? "A workspace brings your people and conversations together. We’ll create a General chat to get you started."
-                  : modal === "chat"
-                    ? `Start a conversation in ${space?.name}.`
-                    : "Create a member invitation tied to their email. You’ll get a link to share. Creating another link for the same email replaces its previous invitation."}
-              </p>
+              {modal === "invite" && <p className="wp-dialog-copy">You’ll get a link to share. A new invite replaces any earlier link for that email.</p>}
               <label className="wp-field">
                 {modal === "workspace"
                   ? "Workspace name"
                   : modal === "chat"
-                    ? "Conversation name"
-                    : "Teammate’s email"}
+                    ? "Chat name"
+                    : "Email"}
                 <input
                   autoFocus
                   type={modal === "invite" ? "email" : "text"}
@@ -1457,7 +1372,7 @@ export default function Workspaces() {
                       ? "Create workspace"
                       : modal === "chat"
                         ? "Create chat"
-                        : "Create invitation link"}
+                        : "Create invite"}
                 </button>
               </div>
             </form>

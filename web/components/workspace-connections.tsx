@@ -42,7 +42,7 @@ export default function WorkspaceConnections({
       cache: "no-store",
     });
     const result = await res.json();
-    if (!res.ok) throw new Error(result.error || "Connection request failed.");
+    if (!res.ok) throw new Error(result.error || "Couldn’t connect. Try again.");
     return result;
   }
   async function load() {
@@ -71,7 +71,7 @@ export default function WorkspaceConnections({
       await action();
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Connection failed.");
+      setError(e instanceof Error ? e.message : "Couldn’t connect. Try again.");
     } finally {
       setBusy(false);
     }
@@ -79,8 +79,8 @@ export default function WorkspaceConnections({
   return (
     <details className="workspace-connections">
       <summary>
-        Repository & agents{" "}
-        <span>{data?.repository?.name ?? "Set up this workspace"}</span>
+        Connections{" "}
+        <span>{data ? data.repository?.name ?? "Not connected" : error ? "Unavailable" : "Loading…"}</span>
       </summary>
       {error && (
         <p role="alert" className="error-banner">
@@ -89,10 +89,9 @@ export default function WorkspaceConnections({
       )}
       <div className="connections-grid">
         <section>
-          <h2>Repository</h2>
+          <h2>GitHub</h2>
           <p>
-            Connect a repository you administer. Give its token Contents
-            read/write access. Each workspace keeps its own connection.
+            You need admin access and a GitHub access token with Contents read/write access.
           </p>
           <form
             onSubmit={(e) => {
@@ -109,7 +108,7 @@ export default function WorkspaceConnections({
             }}
           >
             <label>
-              Repository
+              GitHub project
               <input
                 required
                 placeholder="owner/repository"
@@ -118,7 +117,7 @@ export default function WorkspaceConnections({
               />
             </label>
             <label>
-              GitHub token
+              GitHub access token
               <input
                 required
                 type="password"
@@ -128,7 +127,7 @@ export default function WorkspaceConnections({
               />
             </label>
             <label>
-              Webhook secret
+              Shared secret (32+ characters)
               <input
                 required
                 type="password"
@@ -139,23 +138,25 @@ export default function WorkspaceConnections({
               />
             </label>
             <button type="submit" disabled={busy}>
-              {data?.repository ? "Update credentials" : "Connect repository"}
+              {data?.repository ? "Save" : "Connect"}
             </button>
           </form>
           {data?.repository && (
-            <p>
-              In this repository's GitHub Settings &gt; Webhooks, add{" "}
-              <code>{data.webhookUrl}</code>, choose JSON and push events, and
-              use the same webhook secret. Saving here does not create the
-              GitHub webhook.
-            </p>
+            <>
+            <p>Finish setup in GitHub to check code updates.</p>
+            <details className="connection-help">
+              <summary>GitHub setup</summary>
+              <p>In GitHub: Settings → Webhooks → Add webhook.</p>
+              <p>URL: <code>{data.webhookUrl}</code></p>
+              <p>Choose JSON, Push events, and the same secret.</p>
+            </details>
+            </>
           )}
         </section>
         <section>
-          <h2>Agent access</h2>
+          <h2>AI tools</h2>
           <p>
-            Create a separate credential for each coding agent. Credentials
-            expire after 30 days and cannot approve changes.
+            Keys expire in 30 days. AI tools cannot approve changes.
           </p>
           <form
             onSubmit={(e) => {
@@ -168,22 +169,22 @@ export default function WorkspaceConnections({
             }}
           >
             <label>
-              Agent name
+              Name
               <input
                 required
                 maxLength={80}
-                placeholder="Carter - Codex"
+                placeholder="Codex"
                 value={label}
                 onChange={(e) => setLabel(e.target.value)}
               />
             </label>
-            <button disabled={busy}>Create credential</button>
+            <button disabled={busy}>Create key</button>
           </form>
           {agentToken && (
             <div className="credential-reveal">
-              <p>Save this token now. It will not be shown again.</p>
+              <p>Copy this key. It won’t be shown again.</p>
               <label>
-                THECHAIR_AGENT_TOKEN
+                Access key
                 <input
                   readOnly
                   value={agentToken}
@@ -191,13 +192,12 @@ export default function WorkspaceConnections({
                   onFocus={(e) => e.target.select()}
                 />
               </label>
-              <p>
-                Set it in your MCP or hook environment with THECHAIR_API_URL
-                pointing to this site, then restart your agent. The credential
-                selects this workspace automatically.
-              </p>
+              <details className="connection-help">
+                <summary>Setup</summary>
+                <p>In your tool’s settings, set <code>THECHAIR_AGENT_TOKEN</code> to this key and <code>THECHAIR_API_URL</code> to this site. Restart the tool.</p>
+              </details>
               <button onClick={() => setAgentToken("")}>
-                I saved it - hide token
+                Hide key
               </button>
             </div>
           )}
@@ -208,7 +208,7 @@ export default function WorkspaceConnections({
                   <strong>{c.label}</strong>
                   <small>
                     {c.revokedAt
-                      ? "Revoked"
+                      ? "Disabled"
                       : `Expires ${new Date(c.expiresAt).toLocaleDateString()}`}
                   </small>
                 </span>
@@ -222,7 +222,7 @@ export default function WorkspaceConnections({
                       })
                     }
                   >
-                    Revoke
+                    Disable key
                   </button>
                 )}
               </li>

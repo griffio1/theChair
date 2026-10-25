@@ -7,7 +7,7 @@ import "./chat-images.css";
 
 async function auth() {
   const { data } = await supabase.auth.getSession();
-  if (!data.session) throw new Error("Sign in to view or upload images.");
+  if (!data.session) throw new Error("Sign in to add or view images.");
   return { authorization: `Bearer ${data.session.access_token}` };
 }
 function PrivateImage({ workspaceId, image }: { workspaceId: string; image: ChatImage }) {
@@ -27,11 +27,11 @@ function PrivateImage({ workspaceId, image }: { workspaceId: string; image: Chat
         const response = await fetch(`/api/workspaces/${workspaceId}/images/${image.id}`, {
           headers: await auth(), cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
         });
-        if (!response.ok) throw new Error("Image unavailable. Check your connection and workspace access.");
+        if (!response.ok) throw new Error("Couldn't load this image.");
         const blob = await response.blob();
         if (!active) return;
         objectUrl = URL.createObjectURL(blob); setUrl(objectUrl);
-      } catch (e) { if (active) setError(e instanceof Error ? e.message : "Image unavailable."); }
+      } catch (e) { if (active) setError(e instanceof Error ? e.message : "Couldn't load this image."); }
     }
     const observer = new IntersectionObserver(entries => {
       if (entries.some(e => e.isIntersecting)) { observer.disconnect(); void load(); }
@@ -40,13 +40,13 @@ function PrivateImage({ workspaceId, image }: { workspaceId: string; image: Chat
     return () => { active = false; controller.abort(); observer.disconnect(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
   }, [workspaceId, image.id, attempt]);
   return <div className="chat-image" ref={container}>
-    {url ? <button type="button" className="chat-image-open" onClick={() => dialog.current?.showModal()} aria-label={`Enlarge ${image.name}`}>
+    {url ? <button type="button" className="chat-image-open" onClick={() => dialog.current?.showModal()} aria-label={`Open ${image.name}`}>
       <img src={url} alt={image.name} width={image.width} height={image.height} loading="lazy" />
-    </button> : error ? <button type="button" className="chat-image-retry" onClick={() => setAttempt(n => n + 1)}>{error} Retry</button>
+    </button> : error ? <button type="button" className="chat-image-retry" onClick={() => setAttempt(n => n + 1)}>{error} Try again</button>
       : <span className="chat-image-loading" role="status">Loading image…</span>}
     <span className="chat-image-name" title={image.name}>{image.name}</span>
     <dialog className="chat-image-dialog" ref={dialog} aria-label={`Image preview: ${image.name}`} onClick={e => { if (e.target === e.currentTarget) dialog.current?.close(); }}>
-      <button type="button" onClick={() => dialog.current?.close()} autoFocus>Close image ×</button>
+      <button type="button" onClick={() => dialog.current?.close()} aria-label="Close image" autoFocus>Close</button>
       {url && <img src={url} alt={image.name} />}
     </dialog>
   </div>;
@@ -126,11 +126,11 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
   }, []);
   async function choose(files: File[]) {
     if (!files.length) return;
-    if (inFlight.current || disabled) { setError("Wait for the current upload or message to finish, then try again."); return; }
+    if (inFlight.current || disabled) { setError("Wait for your upload or message to finish."); return; }
     setError("");
-    if (files.length + images.length > 4) { setError("Attach up to four images per message."); return; }
+    if (files.length + images.length > 4) { setError("Add up to 4 images per message."); return; }
     if (files.some(f => !["image/png","image/jpeg","image/webp"].includes(f.type) || !f.size || f.size > 3 * 1024 * 1024)) {
-      setError("Choose PNG, JPEG or WebP files up to 3 MiB each."); return;
+      setError("Use PNG, JPG or WebP, up to 3 MB each."); return;
     }
     const abort = new AbortController(); controller.current = abort;
     inFlight.current = true;
@@ -145,11 +145,11 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
           method:"POST", headers:await auth(), body:data, signal:AbortSignal.any([abort.signal,AbortSignal.timeout(45000)]),
         });
         const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Upload failed. Please select the image again.");
+        if (!response.ok) throw new Error(result.error || "Couldn't upload. Choose the image again.");
         if (!active.current) return;
         uploaded.push(result.image); onChange([...uploaded]);
       }
-    } catch (e) { if (active.current) setError(e instanceof Error ? e.message : "Image upload failed."); }
+    } catch (e) { if (active.current) setError(e instanceof Error ? e.message : "Couldn't upload. Choose the image again."); }
     finally {
       inFlight.current = false;
       pending.forEach(p => URL.revokeObjectURL(p.url)); previewUrls.current = [];
@@ -157,19 +157,19 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
     }
   }
   chooseLatest.current = choose;
-  return <section ref={picker} className="chat-image-picker" aria-label="Image attachments">
+  return <section ref={picker} className="chat-image-picker" aria-label="Images">
     <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={e => {
       void choose(Array.from(e.target.files ?? [])); e.target.value="";
     }} />
     <div className="chat-image-picker-bar">
       <button type="button" className="chat-image-add" disabled={disabled || uploading || images.length >= 4} onClick={() => input.current?.click()}>
-        {uploading ? "Uploading…" : "+ Add images"}
+        {uploading ? "Uploading…" : "Add images"}
       </button>
-      <small>Drop images here or paste with Ctrl+V / ⌘V · up to 4, 3 MiB each</small>
+      <small>Drop or paste · Up to 4 images, 3 MB each</small>
     </div>
     {!!images.length && <div className="chat-image-drafts">{images.map(image => <div key={image.id}>
       <PrivateImage workspaceId={workspaceId} image={image} />
-      <button type="button" disabled={disabled || uploading} onClick={() => onChange(images.filter(i => i.id !== image.id))} aria-label={`Remove ${image.name}`}>Remove ×</button>
+      <button type="button" disabled={disabled || uploading} onClick={() => onChange(images.filter(i => i.id !== image.id))} aria-label={`Remove ${image.name}`}>Remove</button>
     </div>)}</div>}
     {!!previews.length && <div className="chat-image-drafts" aria-label="Uploading images">{previews.map((p,i) => <div key={i}>
       <img className="chat-image-preview" src={p.url} alt={`Uploading ${p.name}`} />

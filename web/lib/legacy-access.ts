@@ -13,7 +13,7 @@ function unavailable(error: unknown) {
   if (error)
     throw new WorkspaceError(
       503,
-      "Team access is not ready. Contact the workspace owner.",
+      "Can't check access. Try again, or ask the owner.",
     );
 }
 
@@ -25,11 +25,11 @@ export async function requireTeam(
   const credential = req.headers.get("x-thechair-agent-token");
   if (credential && options.allowAgent && !options.ownerOnly) {
     if (!/^[a-f0-9]{64}$/.test(credential))
-      throw new WorkspaceError(401, "Invalid agent credential.");
+      throw new WorkspaceError(401, "This AI tool's access key is not valid.");
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_KEY;
     if (!url || !key)
-      throw new WorkspaceError(503, "Agent access is not configured.");
+      throw new WorkspaceError(503, "AI tools need setup. Ask the owner for help.");
     const admin = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: {
@@ -50,12 +50,12 @@ export async function requireTeam(
       .maybeSingle();
     unavailable(error);
     if (!agent)
-      throw new WorkspaceError(401, "Agent credential expired or revoked.");
+      throw new WorkspaceError(401, "This access key expired or was turned off. Ask the owner for a new one.");
     const requested = req.headers.get("x-thechair-workspace");
     if (requested && requested !== agent.workspace_id)
       throw new WorkspaceError(
         403,
-        "Agent credential belongs to another workspace.",
+        "This access key is for another workspace.",
       );
     const issuer = await admin
       .from("chair_memberships")
@@ -68,7 +68,7 @@ export async function requireTeam(
     if (!issuer.data)
       throw new WorkspaceError(
         403,
-        "Agent issuer is no longer a workspace owner.",
+        "This key's creator is no longer an owner. Ask a current owner for a new key.",
       );
     return {
       workspaceId: agent.workspace_id,
@@ -89,7 +89,7 @@ export async function requireTeam(
     workspaceId = binding.data?.workspace_id;
   }
   if (!workspaceId)
-    throw new WorkspaceError(403, "Select a workspace you belong to.");
+    throw new WorkspaceError(403, "Choose a workspace you belong to.");
   const member = await ctx.db
     .from("chair_memberships")
     .select("display_name,role")
@@ -100,7 +100,7 @@ export async function requireTeam(
   if (!member.data || (options.ownerOnly && member.data.role !== "owner"))
     throw new WorkspaceError(
       403,
-      "Only a workspace owner can approve changes.",
+      !member.data ? "You don't have access to this workspace." : "Only owners can do this.",
     );
   return {
     workspaceId: workspaceId,

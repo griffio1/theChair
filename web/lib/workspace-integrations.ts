@@ -13,7 +13,7 @@ export function adminDatabase() {
   const url = process.env.SUPABASE_URL,
     key = process.env.SUPABASE_SERVICE_KEY;
   if (!url || !key)
-    throw new WorkspaceError(503, "Workspace connections are not configured.");
+    throw new WorkspaceError(503, "Connections need setup. Ask the owner for help.");
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
@@ -31,11 +31,11 @@ function checked(error: { code?: string } | null) {
   if (error.code === "23505")
     throw new WorkspaceError(
       409,
-      "That repository is already connected to a workspace.",
+      "This GitHub project is already linked to a workspace.",
     );
   throw new WorkspaceError(
     503,
-    "Workspace connections are unavailable. Check the migration and try again.",
+    "Connections aren't available. Try again.",
   );
 }
 function metadata(r: any) {
@@ -94,13 +94,13 @@ export async function integrationsRequest(
     const body = await readBody(req);
     const name = textField(body, "repository", 200);
     if (!/^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/.test(name))
-      throw new WorkspaceError(400, "Use owner/repository.");
-    const token = textField(body, "token", 500);
+      throw new WorkspaceError(400, "Enter the GitHub project as owner/project.");
+    const token = textField(body, "token", 500, "GitHub access token");
     const secret = textField(body, "webhookSecret", 256);
     if (secret.length < 32)
       throw new WorkspaceError(
         400,
-        "Use a webhook secret of at least 32 characters.",
+        "Use at least 32 characters for the shared secret.",
       );
     const response = await fetch(`https://api.github.com/repos/${name}`, {
       headers: {
@@ -114,7 +114,7 @@ export async function integrationsRequest(
     if (!response.ok)
       throw new WorkspaceError(
         400,
-        "GitHub could not verify that repository and token.",
+        "Check the GitHub project name and access token.",
       );
     const info = await response.json();
     if (
@@ -124,7 +124,7 @@ export async function integrationsRequest(
     )
       throw new WorkspaceError(
         403,
-        "Use a token for an account with administration and push access to this repository.",
+        "Use a GitHub access token from an account with admin and push access.",
       );
     const existing = await db
       .from("chair_repository_connections")
@@ -135,7 +135,7 @@ export async function integrationsRequest(
     if (existing.data && existing.data.repository_id !== info.id)
       throw new WorkspaceError(
         409,
-        "This workspace already has a different repository. Create a separate workspace for a different project.",
+        "This workspace has another GitHub project. Create a new workspace for this project.",
       );
     const result = await db
       .from("chair_repository_connections")
@@ -187,8 +187,8 @@ export async function integrationsRequest(
       .select("id,label,created_at,expires_at,revoked_at")
       .maybeSingle();
     checked(result.error);
-    if (!result.data) throw new WorkspaceError(404, "Credential not found.");
+    if (!result.data) throw new WorkspaceError(404, "Access key not found.");
     return { credential: metadata(result.data) };
   }
-  throw new WorkspaceError(404, "Route not found.");
+  throw new WorkspaceError(404, "That action isn't available.");
 }

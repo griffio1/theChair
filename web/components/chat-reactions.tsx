@@ -12,7 +12,7 @@ async function request(path: string, signal: AbortSignal, body?: object): Promis
     headers: { authorization: `Bearer ${data.session.access_token}`, ...(body ? { "content-type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined });
   const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "Reactions could not be updated.");
+  if (!response.ok) throw new Error(result.error || "Couldn't update your reaction. Try again.");
   return result.reactions;
 }
 export function useConversationReactions(workspaceId: string, conversationId: string, userId: string | undefined, enabled = true) {
@@ -51,7 +51,7 @@ export function useConversationReactions(workspaceId: string, conversationId: st
     try {
       const updated = await request(`${base}/messages/${messageId}/reactions`, AbortSignal.timeout(15000), {emoji,active});
       if (liveScope.current === scope && pending.current === operation) setState(previous => ({scope,rows:[...(previous.scope === scope ? previous.rows : []).filter(r => r.messageId !== messageId),...updated]}));
-    } catch (e) { if (liveScope.current === scope && pending.current === operation) setError(e instanceof Error ? e.message : "Reaction failed. Try again."); }
+    } catch (e) { if (liveScope.current === scope && pending.current === operation) setError(e instanceof Error ? e.message : "Couldn't update your reaction. Try again."); }
     finally {
       if (pending.current === operation) {
         pending.current = null; mutation.current++;

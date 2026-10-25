@@ -26,15 +26,19 @@ export function validId(value: string): string {
       value,
     )
   )
-    throw new WorkspaceError(400, "Invalid resource ID.");
+    throw new WorkspaceError(400, "This item is not valid. Refresh and try again.");
   return value;
 }
-export function textField(body: Row, key: string, max: number): string {
+export function textField(body: Row, key: string, max: number, label?: string): string {
   const value = body[key];
+  const labels: Record<string, string> = {
+    name: "name", title: "chat name", email: "email address", body: "message",
+    repository: "GitHub project", token: "access key", webhookSecret: "shared secret", label: "name",
+  };
   if (typeof value !== "string" || !value.trim() || value.trim().length > max)
     throw new WorkspaceError(
       400,
-      `Enter a valid ${key} (up to ${max} characters).`,
+      `Enter your ${label ?? labels[key] ?? key} (up to ${max} characters).`,
     );
   return value.trim();
 }
@@ -46,9 +50,9 @@ export async function readBody(req: Request): Promise<Row> {
       ?.toLowerCase()
       .startsWith("application/json")
   )
-    throw new WorkspaceError(415, "Send JSON.");
+    throw new WorkspaceError(415, "Can't read this request. Refresh and try again.");
   const reader = req.body?.getReader();
-  if (!reader) throw new WorkspaceError(400, "Missing request body.");
+  if (!reader) throw new WorkspaceError(400, "Nothing was sent. Please try again.");
   let size = 0;
   const chunks: Uint8Array[] = [];
   try {
@@ -58,7 +62,7 @@ export async function readBody(req: Request): Promise<Row> {
       size += value.byteLength;
       if (size > 65536) {
         await reader.cancel();
-        throw new WorkspaceError(413, "Request is too large.");
+        throw new WorkspaceError(413, "Too much was sent. Send less and try again.");
       }
       chunks.push(value);
     }
@@ -68,7 +72,7 @@ export async function readBody(req: Request): Promise<Row> {
     return body;
   } catch (error) {
     if (error instanceof WorkspaceError) throw error;
-    throw new WorkspaceError(400, "Invalid JSON body.");
+    throw new WorkspaceError(400, "Can't read what was sent. Please try again.");
   } finally {
     reader.releaseLock();
   }
@@ -79,26 +83,26 @@ function check(error: { code?: string } | null) {
   if (["42P01", "PGRST202", "PGRST205"].includes(error.code ?? ""))
     throw new WorkspaceError(
       503,
-      "Workspace storage is not ready. Apply the workspace migration in Supabase.",
+      "Workspace setup is missing. Ask the owner to run the missing SQL file in Supabase.",
     );
   if (error.code === "42501")
     throw new WorkspaceError(
       403,
-      "This account does not have access to that action or invitation.",
+      "You don't have access to this action or invite.",
     );
   if (error.code === "22023")
     throw new WorkspaceError(
       400,
-      "The details are invalid or the invitation has expired.",
+      "Check your details. The invite may have expired.",
     );
   if (error.code === "23505")
     throw new WorkspaceError(
       409,
-      "This member or message already exists. Refresh and try again.",
+      "This person or message is already saved. Refresh and try again.",
     );
   throw new WorkspaceError(
     503,
-    "Workspace storage is temporarily unavailable. Please try again.",
+    "Can't reach your workspace. Try again.",
   );
 }
 
@@ -111,7 +115,7 @@ export async function authenticate(req: Request): Promise<Context> {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key)
-    throw new WorkspaceError(503, "Account sign-in is not configured.");
+    throw new WorkspaceError(503, "Sign-in needs setup. Ask the owner for help.");
   // Use the caller's session, never the service key: RLS applies to every query.
   const db = createClient(url, key, {
     auth: {
@@ -133,14 +137,14 @@ export async function authenticate(req: Request): Promise<Context> {
   try {
     result = await db.auth.getUser(authorization.slice(7));
   } catch {
-    throw new WorkspaceError(503, "Sign-in verification is temporarily unavailable. Please try again.");
+    throw new WorkspaceError(503, "Can't check your sign-in right now. Try again.");
   }
   // An auth outage is not an expired session. Returning 401 for a timeout or
   // rate limit makes clients discard working credentials and ask users to log in.
   if (result.error && ![400, 401, 403].includes(result.error.status ?? 0))
-    throw new WorkspaceError(503, "Sign-in verification is temporarily unavailable. Please try again.");
+    throw new WorkspaceError(503, "Can't check your sign-in right now. Try again.");
   if (result.error || !result.data.user)
-    throw new WorkspaceError(401, "Your session expired. Sign in again.");
+    throw new WorkspaceError(401, "Your sign-in expired. Please sign in again.");
   return { db, userId: result.data.user.id };
 }
 
@@ -227,7 +231,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       };
     }
   }
-  if (!parts[0]) throw new WorkspaceError(404, "Route not found.");
+  if (!parts[0]) throw new WorkspaceError(404, "That action isn't available.");
   const workspaceId = validId(parts[0]);
   if (req.method === "GET" && parts.length === 4 && parts[1] === "chats" && parts[3] === "messages") {
     const chatId = validId(parts[2]);
@@ -241,7 +245,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
         .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(200),
     ]);
     check(found.error); check(rows.error);
-    if (!found.data) throw new WorkspaceError(404, "Conversation unavailable.");
+    if (!found.data) throw new WorkspaceError(404, "Chat unavailable.");
     return { messages: (rows.data ?? []).reverse().map(message) };
   }
   const role = await membership(ctx, workspaceId);
@@ -328,7 +332,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     req.method === "POST"
   ) {
     if (role !== "owner")
-      throw new WorkspaceError(403, "Only owners can change member roles.");
+      throw new WorkspaceError(403, "Only owners can change roles.");
     const body = await readBody(req);
     if (body.role !== "owner" && body.role !== "member")
       throw new WorkspaceError(400, "Choose owner or member.");
@@ -340,7 +344,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     if (result.error?.code === "23514")
       throw new WorkspaceError(
         409,
-        "A workspace must keep at least one owner.",
+        "A workspace must have at least one owner.",
       );
     check(result.error);
     return { member: result.data };
@@ -357,7 +361,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     if (!data)
       throw new WorkspaceError(
         503,
-        "Conversation creation was not confirmed. Refresh before trying again.",
+        "Can't confirm the new chat. Refresh before trying again.",
       );
     return { chat: chat(data) };
   }
@@ -370,7 +374,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       .eq("id", chatId)
       .maybeSingle();
     check(found.error);
-    if (!found.data) throw new WorkspaceError(404, "Conversation unavailable.");
+    if (!found.data) throw new WorkspaceError(404, "Chat unavailable.");
     if (req.method === "POST") {
       const body = await readBody(req);
       const { imageMessageInput } = await import("./chat-images");
@@ -385,7 +389,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       if (!data)
         throw new WorkspaceError(
           503,
-          "Message delivery was not confirmed. Retry to check it safely.",
+          "Can't confirm your message was sent. Try again to check.",
         );
       return { messages: [message(data)] };
     }
@@ -396,7 +400,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     req.method === "POST"
   ) {
     if (role !== "owner")
-      throw new WorkspaceError(403, "Only workspace owners can invite people.");
+      throw new WorkspaceError(403, "Only owners can invite people.");
     const body = await readBody(req);
     const email = textField(body, "email", 254).toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
@@ -415,15 +419,15 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       },
     };
   }
-  throw new WorkspaceError(404, "Route not found.");
+  throw new WorkspaceError(404, "That action isn't available.");
 }
 
 export async function acceptInvitation(req: Request) {
   const { db } = await authenticate(req);
   const body = await readBody(req);
-  const token = textField(body, "token", 64);
+  const token = textField(body, "token", 64, "invite code");
   if (!/^[a-f0-9]{64}$/.test(token))
-    throw new WorkspaceError(400, "Invalid invitation link.");
+    throw new WorkspaceError(400, "This invite link is not valid. Ask for a new one.");
   const { data, error } = await db.rpc("chair_accept_invitation", {
     p_token_hash: createHash("sha256").update(token).digest("hex"),
   });
@@ -441,7 +445,7 @@ export async function respond(run: () => Promise<unknown>): Promise<Response> {
   } catch (error) {
     const known =
       error instanceof RepositoryNotConnectedError
-        ? new WorkspaceError(409, error.message)
+        ? new WorkspaceError(409, "Connect a GitHub project before continuing.")
         : error instanceof WorkspaceError
           ? error
           : null;
@@ -449,7 +453,7 @@ export async function respond(run: () => Promise<unknown>): Promise<Response> {
       {
         error: known
           ? known.message
-          : "Something went wrong. Please try again.",
+          : "Something went wrong. Try again.",
       },
       { status: known ? known.status : 500, headers },
     );

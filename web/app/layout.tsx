@@ -2,8 +2,8 @@ import "./globals.css";
 import "./pride.css";
 
 export const metadata = {
-  title: "theChair — Build in sync",
-  description: "A shared space for your team, your AI agents, and the agreements that bring everything together.",
+  title: "theChair",
+  description: "Team chat and shared code agreements.",
 };
 
 // Apply the saved appearance before the first paint, avoiding a light flash.

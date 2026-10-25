@@ -14,10 +14,10 @@ export async function normalizeImage(bytes: Buffer) {
       .resize({ width: 4096, height: 4096, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 85 }).toBuffer({ resolveWithObject: true });
     if (data.length > MAX_IMAGE_BYTES)
-      throw new WorkspaceError(413, "This image is too large after processing. Choose a smaller image.");
+      throw new WorkspaceError(413, "This image is too large. Choose a smaller one.");
     return { bytes: data, width: output.width, height: output.height };
   } catch (error) {
     if (error instanceof WorkspaceError) throw error;
-    throw new WorkspaceError(400, "Choose a valid, still PNG, JPEG or WebP image (up to 25 megapixels).");
+    throw new WorkspaceError(400, "Use a PNG, JPEG or WebP image up to 25 megapixels. No animations.");
   }
 }

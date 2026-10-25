@@ -102,7 +102,7 @@ function ContractCard({
         </span>
       </div>
       <div className="field-group">
-        <span className="field-label">Request</span>
+        <span className="field-label">Receives</span>
         <div className="field-list">
           {contract.request?.map((f: Row) => (
             <code key={f.name}>
@@ -113,7 +113,7 @@ function ContractCard({
         </div>
       </div>
       <div className="field-group">
-        <span className="field-label">Response</span>
+        <span className="field-label">Returns</span>
         <div className="field-list">
           {contract.response?.map((f: Row) => (
             <code key={f.name}>
@@ -128,7 +128,7 @@ function ContractCard({
           <span className="tiny-avatar">
             {String(contract.owner).slice(0, 1).toUpperCase()}
           </span>
-          Owned by {contract.owner}
+          Owner: {contract.owner}
         </div>
       )}
     </article>
@@ -209,10 +209,10 @@ export default function TeamDashboard({
         if (messageError) throw messageError;
         if (active) {
           setMessages(previous => mergeTeamMessages(previous, m ?? []));
-          setError(previous => previous === "Couldn’t refresh the conversation. Reconnecting automatically." ? "" : previous);
+          setError(previous => previous === "Chat couldn’t load. Retrying…" ? "" : previous);
         }
       } catch {
-        if (active) setError("Couldn’t refresh the conversation. Reconnecting automatically.");
+        if (active) setError("Chat couldn’t load. Retrying…");
       } finally {
         messagesInFlight = false;
         if (active) setLoading(false);
@@ -232,9 +232,9 @@ export default function TeamDashboard({
         if (active && revision === ledgerRevision.current) {
           setConflicts(Object.fromEntries((result.data ?? []).map(row => [row.id,row])));
           setContracts(nextContracts);
-          setError(previous => previous === "Some team details could not load. Chat is still available." ? "" : previous);
+          setError(previous => previous === "Details couldn’t load. Chat still works." ? "" : previous);
         }
-      } catch { if (active) setError("Some team details could not load. Chat is still available."); }
+      } catch { if (active) setError("Details couldn’t load. Chat still works."); }
       finally {
         ledgerInFlight = false;
         if (active) {
@@ -339,7 +339,7 @@ export default function TeamDashboard({
       });
       const result = await response.json();
       if (!response.ok) {
-        throw new Error(result.error || "Your message couldn’t be sent. Please try again.");
+        throw new Error(result.error || "Couldn’t send. Try again.");
       }
       const sent = teamMessageRows(draftImages.length ? result.messages : result);
       setMessages(previous => mergeTeamMessages(previous, sent));
@@ -347,7 +347,7 @@ export default function TeamDashboard({
       setDraft(""); setDraftImages([]); imageMessageId.current = "";
     } catch (error) {
       refreshConversation.current();
-      setError(`${error instanceof Error ? error.message : "Couldn’t confirm your message."} Check the conversation before retrying; your draft is still here.`);
+      setError(`${error instanceof Error ? error.message : "Send not confirmed."} Check the chat before retrying. Your draft is still here.`);
     } finally {
       setBusy(false);
     }
@@ -378,7 +378,7 @@ export default function TeamDashboard({
       );
       if (!response.ok) {
         const failure = await response.json();
-        throw new Error(failure.error || "Approval failed");
+        throw new Error(failure.error || "Couldn’t approve.");
       }
       const revision = ++ledgerRevision.current;
       if (kind === "contract") {
@@ -395,7 +395,7 @@ export default function TeamDashboard({
       }
     } catch (error) {
       setError(
-        `${error instanceof Error ? error.message : "Couldn’t confirm the approval."} Refresh to check its status before trying again.`,
+        `${error instanceof Error ? error.message : "Approval not confirmed."} Refresh before retrying.`,
       );
     } finally {
       setPending(null);
@@ -439,15 +439,15 @@ export default function TeamDashboard({
             </span>
             <strong>
               {open
-                ? "Contract conflict detected"
+                ? "Issue found"
                 : c?.status === "approved"
                   ? "Agreement approved"
                   : c?.status === "dismissed"
-                    ? "Conflict dismissed"
-                  : "Contract check"}
+                    ? "Issue dismissed"
+                  : "Code check"}
             </strong>
             <span className={`badge ${open ? "badge-warn" : "badge-neutral"}`}>
-              {open ? "Needs review" : (c?.status ?? "Recorded")}
+              {open ? "Open" : c?.status === "approved" ? "Approved" : c?.status === "dismissed" ? "Dismissed" : "Saved"}
             </span>
           </div>
           <p className="event-copy">{m.body}</p>
@@ -468,22 +468,23 @@ export default function TeamDashboard({
           <MessageReactions messageId={m.id} reactions={reactions} />
           <div className="event-footer">
             <span>
-              {c?.agent ?? "Agent"}
+              {c?.agent ?? "AI tool"}
               {c?.developer ? ` · ${c.developer}` : ""}
-              {c?.detected_by ? ` · ${c.detected_by}` : ""}
+              {c?.detected_by === "preflight" || c?.detected_by === "hook" ? " · Before editing" : c?.detected_by === "webhook" ? " · After a code update" : ""}
             </span>
             {open && canApprove && (
               <button
                 className="button-dark button-small"
                 disabled={pending !== null}
                 onClick={() => void approve("conflict", c.id)}
+                aria-label={`Approve agreement for ${c.summary ?? "this issue"}`}
               >
-                {pending === `conflict:${c.id}` ? "Approving…" : "Approve agreement"}
+                {pending === `conflict:${c.id}` ? "Approving…" : "Approve"}
                 <Icon name="chevron" size={13} />
               </button>
             )}
           </div>
-          {(open || c?.status === "approved") && <p className="event-copy">Approval records the agreement. Apply the source change and run another check to verify the fix.</p>}
+          {(open || c?.status === "approved") && <p className="event-copy">Approval doesn’t change the code. Apply the fix, then check again.</p>}
         </article>
       );
     }
@@ -498,9 +499,9 @@ export default function TeamDashboard({
             <span className="event-icon">
               <Icon name="contracts" size={16} />
             </span>
-            <strong>A new agreement</strong>
+            <strong>New agreement</strong>
             <span className="badge badge-neutral">
-              {c?.status ?? "Proposed"}
+              {c?.status === "approved" ? "Approved" : c?.status === "superseded" ? "Replaced" : "Needs approval"}
             </span>
           </div>
           {c && (
@@ -519,10 +520,11 @@ export default function TeamDashboard({
                 className="button-dark button-small"
                 disabled={pending !== null}
                 onClick={() => void approve("contract", id, Number(version))}
+                aria-label={`Approve ${id}, version ${version}`}
               >
                 {pending === `contract:${id}`
                   ? "Approving…"
-                  : "Approve contract"}
+                  : "Approve"}
                 <Icon name="chevron" size={13} />
               </button>
             )}
@@ -577,16 +579,15 @@ export default function TeamDashboard({
           <span className="project-icon">{workspaceName.slice(0, 1).toUpperCase()}</span>
           <div>
             <strong>{workspaceName}</strong>
-            <span>Team agreements</span>
+            <span>Team</span>
           </div>
         </div>
-        <div className="nav-label">WORKSPACE</div>
         <nav>
           {(
             [
-              { key: "chat", label: "Main chat", icon: "chat" },
-              { key: "conflicts", label: "Conflicts", icon: "conflicts" },
-              { key: "contracts", label: "Contracts", icon: "contracts" },
+              { key: "chat", label: "Team chat", icon: "chat" },
+              { key: "conflicts", label: "Issues", icon: "conflicts" },
+              { key: "contracts", label: "Agreements", icon: "contracts" },
             ] as const
           ).map((item) => (
             <button
@@ -608,27 +609,17 @@ export default function TeamDashboard({
         <a
           className="nav-item"
           href="/workspaces"
-          aria-label="Workspaces and people"
-          title="Workspaces and people"
+          aria-label="Workspaces"
+          title="Workspaces"
         >
           <Icon name="chat" />
-          <span>Workspaces & people ↗</span>
+          <span>Workspaces ↗</span>
         </a>
-        <div className="sidebar-note">
-          <span className="note-symbol">↗</span>
-          <strong>
-            Shared intent.
-            <br />
-            Better together.
-          </strong>
-          <p>One place for your team and agents to agree.</p>
-        </div>
         <div className="profile">
           <span className="avatar profile-avatar">
             {me.slice(0, 1).toUpperCase() || "?"}
           </span>
           <label>
-            <span>YOUR NAME</span>
             <input aria-label="Your name" value={me} readOnly />
           </label>
         </div>
@@ -641,10 +632,10 @@ export default function TeamDashboard({
             <Icon name="chevron" size={12} />
             <strong>
               {view === "chat"
-                ? "Main chat"
+                ? "Team chat"
                 : view === "conflicts"
-                  ? "Conflicts"
-                  : "Contracts"}
+                  ? "Issues"
+                  : "Agreements"}
             </strong>
           </div>
           <AppearancePicker />
@@ -663,15 +654,7 @@ export default function TeamDashboard({
         <main className="dashboard">
           <section className="overview" aria-label="Workspace overview">
             <div>
-              <div className="eyebrow">YOUR TEAM. IN FLOW.</div>
-              <h1>
-                Many minds.
-                <br /> One direction<span>.</span>
-              </h1>
-              <p>
-                The conversation, the code, the shared understanding.
-                Everything comes together here.
-              </p>
+              <h1>{workspaceName}</h1>
             </div>
             <FlowArt className="overview-art" />
           </section>
@@ -688,7 +671,7 @@ export default function TeamDashboard({
                 <strong>
                   {loadingLedger ? "—" : String(approved.length).padStart(2, "0")}
                 </strong>
-                <span>Shared contracts</span>
+                <span>Agreements</span>
               </span>
               <Icon name="chevron" size={14} />
             </button>
@@ -705,7 +688,7 @@ export default function TeamDashboard({
                 <strong>
                   {loadingLedger ? "—" : String(openCount).padStart(2, "0")}
                 </strong>
-                <span>Needs attention</span>
+                <span>Open issues</span>
               </span>
               <Icon name="chevron" size={14} />
             </button>
@@ -717,7 +700,7 @@ export default function TeamDashboard({
                 <strong>
                   {loadingLedger ? "—" : String(caught).padStart(2, "0")}
                 </strong>
-                <span>Caught before merge</span>
+                <span>Issues caught</span>
               </span>
             </div>
           </div>
@@ -739,36 +722,25 @@ export default function TeamDashboard({
               className="main-panel"
               aria-label={
                 view === "chat"
-                  ? "Main chat"
+                  ? "Team chat"
                   : view === "conflicts"
-                    ? "Conflict activity"
-                    : "Contract ledger"
+                    ? "Issues"
+                    : "Agreements"
               }
             >
               <div className="panel-header">
                 <div>
                   <h2>
                     {view === "chat"
-                      ? "The conversation"
+                      ? "Team chat"
                       : view === "conflicts"
-                        ? "Conflict activity"
-                        : "Contract ledger"}
+                        ? "Issues"
+                        : "Agreements"}
                   </h2>
-                  <p>
-                    {view === "chat"
-                      ? "Where everyone gets on the same page."
-                      : view === "conflicts"
-                        ? "Catch the mismatch. Keep the momentum."
-                        : "The agreements your team builds on."}
-                  </p>
                 </div>
-                <span className="panel-tag">
-                  {view === "chat"
-                    ? "Main chat"
-                    : view === "conflicts"
-                      ? `${openCount} open`
-                      : `${approved.length} approved`}
-                </span>
+                {view !== "chat" && <span className="panel-tag">
+                  {view === "conflicts" ? `${openCount} open` : `${approved.length} approved`}
+                </span>}
               </div>
               {view === "contracts" ? (
                 <div className="ledger-grid">
@@ -778,13 +750,13 @@ export default function TeamDashboard({
                   {!loadingLedger && approved.length === 0 && (
                     <EmptyState
                       icon="contracts"
-                      title="Your first agreement starts here"
-                      text="Propose a contract in the main chat. Approved contracts will appear here."
+                      title="No agreements yet"
+                      text="Describe what the code should send and return in Team chat."
                     />
                   )}
                   {loadingLedger && (
                     <p className="loading-state" role="status">
-                      Loading contracts…
+                      Loading agreements…
                     </p>
                   )}
                 </div>
@@ -797,20 +769,20 @@ export default function TeamDashboard({
                   >
                     {loading && !visibleMessages.length ? (
                       <p className="loading-state" role="status">
-                        Loading your workspace…
+                        Loading…
                       </p>
                     ) : visibleMessages.length === 0 ? (
                       <EmptyState
                         icon={view === "chat" ? "chat" : "check"}
                         title={
                           view === "chat"
-                            ? "Good things start with a conversation"
-                            : "A little peace of mind"
+                            ? "No messages yet"
+                            : "No issues yet"
                         }
                         text={
                           view === "chat"
-                            ? "Share a plan or propose an API contract. Your agents will build with the same understanding."
-                            : "No conflict activity yet. Contract checks will show up here when there’s something to review."
+                            ? "Send a message to your team and AI."
+                            : ""
                         }
                       />
                     ) : (
@@ -829,7 +801,7 @@ export default function TeamDashboard({
                       >
                         <textarea
                           aria-label="Message the team"
-                          placeholder="Share a plan. Ask a question. Make an agreement."
+                          placeholder="Write a message…"
                           value={draft}
                           disabled={busy}
                           maxLength={10000}
@@ -849,7 +821,7 @@ export default function TeamDashboard({
                         <ImagePicker workspaceId={workspaceId} images={draftImages} disabled={busy} onBusy={setUploading}
                           onChange={images => { setDraftImages(images); imageMessageId.current = ""; }} />
                         <div className="composer-bottom">
-                          <span>{draftImages.length ? "Shared with teammates · images aren’t analyzed by AI" : "Visible to your team & agents"}</span>
+                          <span>{draftImages.length ? "Images are shared with your team, not AI" : "Shared with your team and AI"}</span>
                           <button
                             className="send-button"
                             type="submit"
@@ -877,15 +849,14 @@ export default function TeamDashboard({
             {view !== "contracts" && (
               <aside
                 className="contracts-panel"
-                aria-label="Approved contracts"
+                aria-label="Approved agreements"
               >
                 <div className="panel-header">
                   <div>
                     <h2>
-                      Source of truth
+                      Agreements
                       <span className="blue-dot" />
                     </h2>
-                    <p>Agreed on. Built against.</p>
                   </div>
                   <span className="subtle-count">{approved.length}</span>
                 </div>
@@ -894,29 +865,17 @@ export default function TeamDashboard({
                     <ContractCard key={c.id} contract={c} compact />
                   ))}
                   {loadingLedger && (
-                    <p className="loading-state">Loading contracts…</p>
+                    <p className="loading-state">Loading agreements…</p>
                   )}
                   {!loadingLedger && approved.length === 0 && (
                     <p className="empty-contracts">
-                      Your approved API contracts will appear here.
+                      No agreements yet.
                     </p>
                   )}
-                </div>
-                <div className="ledger-note">
-                  <Icon name="check" size={16} />
-                  <p>
-                    Your agents check these agreements before they write code.
-                  </p>
                 </div>
               </aside>
             )}
           </div>
-          <footer className="workspace-footer">
-            <span>theChair — Git merges code. We merge intent.</span>
-            <span>
-              Made for building together<span className="footer-spark">✳</span>
-            </span>
-          </footer>
         </main>
       </div>
     </div>
@@ -958,7 +917,7 @@ function EmptyState({
         <Icon name={icon} size={24} />
       </span>
       <h3>{title}</h3>
-      <p>{text}</p>
+      {text && <p>{text}</p>}
     </div>
   );
 }

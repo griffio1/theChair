@@ -54,7 +54,7 @@ export default function TeamAccess({
             .maybeSingle();
           if (binding.error || !binding.data)
             throw new Error(
-              "Select your workspace to open its team dashboard.",
+              "Choose a workspace to open team chat.",
             );
           workspaceId = binding.data.workspace_id;
         }
@@ -72,7 +72,7 @@ export default function TeamAccess({
             .single(),
         ]);
         if (member.error || workspace.error)
-          throw new Error("Your membership could not be verified.");
+          throw new Error("We couldn't open this workspace.");
         if (active) {
           setAccess({
             userId: userId!,
@@ -86,7 +86,7 @@ export default function TeamAccess({
       } catch (e) {
         if (active) {
           setAccess(null);
-          setError(e instanceof Error ? e.message : "Access unavailable.");
+          setError(e instanceof Error ? e.message : "We couldn't open this workspace.");
         }
       } finally {
         if (active) timer = setTimeout(check, 10000);
@@ -105,11 +105,11 @@ export default function TeamAccess({
   )
     return (
       <main className="dashboard">
-        <h1>Team agreements</h1>
+        <h1>Team chat</h1>
         <p role={error ? "alert" : "status"}>
-          {error || "Checking your workspace membership…"}
+          {error || "Checking access…"}
         </p>
-        <a href="/workspaces">Back to your workspaces</a>
+        <a href="/workspaces">Choose a workspace</a>
       </main>
     );
   return (

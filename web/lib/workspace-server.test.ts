@@ -58,7 +58,7 @@ test("temporary auth failures preserve sessions while invalid tokens still retur
   for (status of [0, 429, 500, 502, 503]) {
     const response = await respond(() => authenticate(req()));
     assert.equal(response.status, 503, `upstream ${status} must not force sign-in`);
-    assert.match((await response.json()).error, /temporarily unavailable/);
+    assert.match((await response.json()).error, /Can't check your sign-in right now/);
   }
   for (status of [400, 401, 403]) {
     await assert.rejects(authenticate(req()),

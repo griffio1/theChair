@@ -4,11 +4,11 @@ import { authenticate, readBody, validId, WorkspaceError } from "./workspace-ser
 import { MAX_IMAGE_BYTES, normalizeImage } from "./image-validation";
 
 const BUCKET = "chair-chat-images";
-const unavailable = () => new WorkspaceError(503, "Image storage is not ready. Apply chat-images.sql in Supabase, then try again.");
+const unavailable = () => new WorkspaceError(503, "Images aren't available. Try again.");
 function adminClient() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
-  if (!url || !key) throw unavailable();
+  if (!url || !key) throw new WorkspaceError(503, "Images need setup. Ask the owner for help.");
   return createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store", signal: AbortSignal.timeout(15000) }) },
@@ -33,7 +33,7 @@ export async function uploadImage(req: Request, workspaceId: string) {
     throw new WorkspaceError(415, "Choose an image file to upload.");
   // Bound the actual stream before parsing multipart data; do not trust Content-Length.
   const reader = req.body?.getReader();
-  if (!reader) throw new WorkspaceError(400, "Missing image.");
+  if (!reader) throw new WorkspaceError(400, "Choose an image to upload.");
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -50,11 +50,11 @@ export async function uploadImage(req: Request, workspaceId: string) {
   } finally { reader.releaseLock(); }
   let form: FormData;
   try { form = await new Request(req.url, { method: "POST", headers: { "content-type": req.headers.get("content-type")! }, body: Buffer.concat(chunks) }).formData(); }
-  catch { throw new WorkspaceError(400, "Invalid image upload."); }
+  catch { throw new WorkspaceError(400, "Couldn't read this image. Choose it again."); }
   const file = form.get("file");
   const clientId = form.get("clientUploadId");
   if (!(file instanceof File) || form.getAll("file").length !== 1 || typeof clientId !== "string")
-    throw new WorkspaceError(400, "Choose one image to upload.");
+    throw new WorkspaceError(400, "Choose one image at a time.");
   validId(clientId);
   const normalized = await normalizeImage(Buffer.from(await file.arrayBuffer()));
   const hash = createHash("sha256").update(normalized.bytes).digest("hex");
@@ -87,7 +87,7 @@ export async function uploadImage(req: Request, workspaceId: string) {
       .eq("uploaded_by", ctx.userId).eq("client_upload_id", clientId).single();
     if (previous.error) throw unavailable();
     saved = previous.data;
-    if (saved.content_hash !== hash) throw new WorkspaceError(409, "This upload was already used for a different image. Select the file again.");
+    if (saved.content_hash !== hash) throw new WorkspaceError(409, "This upload changed. Choose the image again.");
   } else if (inserted.error) throw unavailable();
   if (!saved) throw unavailable();
   if (!saved.ready) {
@@ -121,16 +121,16 @@ export function imageMessageInput(body: Record<string, unknown>, required = fals
     throw new WorkspaceError(400, "Attach up to four images.");
   const imageIds = ids.map(id => validId(id as string));
   if (typeof body.body !== "string" || body.body.trim().length > 10000 || (!body.body.trim() && !imageIds.length))
-    throw new WorkspaceError(400, "Write a message or attach an image.");
-  if (typeof body.clientMessageId !== "string") throw new WorkspaceError(400, "Missing message ID.");
+    throw new WorkspaceError(400, "Write a message or add an image.");
+  if (typeof body.clientMessageId !== "string") throw new WorkspaceError(400, "Can't send this message. Refresh and try again.");
   return { p_body: body.body.trim(), p_client_id: validId(body.clientMessageId), p_images: imageIds };
 }
 export async function sendTeamImages(req: Request, workspaceId: string) {
   const ctx = await member(req, workspaceId);
   const input = imageMessageInput(await readBody(req), true);
   const result = await ctx.db.rpc("chair_send_images", { p_workspace: workspaceId, p_chat: null, ...input });
-  if (result.error?.code === "42501") throw new WorkspaceError(403, "An image is unavailable. Remove it and upload it again.");
-  if (result.error?.code === "23505") throw new WorkspaceError(409, "This message was already sent with different content.");
+  if (result.error?.code === "42501") throw new WorkspaceError(403, "Can't use an image. Remove it and upload it again.");
+  if (result.error?.code === "23505") throw new WorkspaceError(409, "This message was already sent with different text or images.");
   if (result.error) throw unavailable();
   const r = result.data;
   return { messages: [{ id: r.id, author: { type: r.author_type, name: r.author_name },
