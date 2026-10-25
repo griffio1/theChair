@@ -16,6 +16,7 @@ import NotificationInbox from '../../components/notification-inbox';
 import {normalizeUsername,usernameError,type AccountProfile} from '../../lib/usernames';
 import {identityRequest} from '../../lib/identity-client';
 import AccountSettings from "../../components/account-settings";
+import {DeleteMessage} from '../../components/delete-message';
 import {LoadingSkeleton} from '../../components/loading-skeleton';
 import ProjectInfo from "../../components/project-info";
 import {MessageInput} from "../../components/message-input";
@@ -472,7 +473,7 @@ export default function Workspaces() {
         const byId = new Map(
           (previous.scope === key ? previous.items : []).map((m) => [m.id, m]),
         );
-        for (const m of items) byId.set(m.id, m);
+        for (const m of items) if(!byId.get(m.id)?.deletedAt) byId.set(m.id, m);
         return {
           scope: key,
           items: [...byId.values()]
@@ -1131,7 +1132,8 @@ export default function Workspaces() {
                                 {m.body && <p>{m.body}</p>}
                                 <ChatImages workspaceId={activeSpace} images={m.images} />
                               </div>
-                              <MessageReactions messageId={m.id} reactions={reactions} />
+                              {!m.deletedAt&&<MessageReactions messageId={m.id} reactions={reactions} />}
+                              {!m.deletedAt&&m.author.userId===userId&&userId&&<DeleteMessage workspaceId={activeSpace} conversationId={activeChat} messageId={m.id} userId={userId} onDeleted={()=>mergeMessages(scope,[{...m,body:'Message deleted',images:[],deletedAt:new Date().toISOString()}])} />}
                             </div>
                           </article>
                         ))

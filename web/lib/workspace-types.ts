@@ -40,6 +40,7 @@ export interface WorkspaceInvitation {
   inviteUrl?: string;
 }
 export interface WorkspaceMessage {
+  deletedAt?: string | null;
   id: string;
   chatId: string;
   workspaceId: string;

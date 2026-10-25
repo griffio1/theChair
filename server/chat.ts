@@ -75,9 +75,9 @@ function toLlm(m: Message): ChatMessage {
   return { role: "user", content: `${m.author.name}: ${m.body}` };
 }
 
-export async function handleChat(req: ChatRequest): Promise<Message[]> {
+export async function handleChat(req: ChatRequest, authorUserId?: string): Promise<Message[]> {
   const created: Message[] = [];
-  created.push(await postMessage({ author: { type: "human", name: req.author }, kind: "text", body: req.body }));
+  created.push(await postMessage({ author: { type: "human", name: req.author }, kind: "text", body: req.body }, authorUserId));
 
   const [history, contracts] = await Promise.all([getMessages(30), getContracts()]);
   // System notices go into the system prompt as background, not as chat turns,

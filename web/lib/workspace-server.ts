@@ -171,6 +171,7 @@ const chat = (r: Row): WorkspaceChat => ({
   createdAt: r.created_at,
 });
 const message = (r: Row): WorkspaceMessage => ({
+  deletedAt: r.deleted_at ?? null,
   id: r.id,
   chatId: r.chat_id,
   workspaceId: r.workspace_id,

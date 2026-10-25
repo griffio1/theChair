@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       handleChat({
         author: identity.name,
         body: message,
-      }),
+      }, identity.userId),
     );
   });
 }

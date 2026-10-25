@@ -2,6 +2,9 @@ import type { Message } from "../../shared/types";
 import type { ChatImage } from "./workspace-types";
 
 export type TeamMessageRow = {
+  author_user_id?: string;
+  image_author_id?: string;
+  deleted_at?: string | null;
   id: string;
   author_type: Message["author"]["type"];
   author_name: string;
@@ -25,7 +28,9 @@ export function teamMessageRows(messages: (Message & { images?: ChatImage[] })[]
 }
 
 export function mergeTeamMessages(previous: TeamMessageRow[], incoming: TeamMessageRow[]): TeamMessageRow[] {
-  return [...new Map([...previous, ...incoming].map(row => [row.id, row])).values()]
+  const rows=new Map(previous.map(row=>[row.id,row]));
+  for(const row of incoming)if(!rows.get(row.id)?.deleted_at)rows.set(row.id,row);
+  return [...rows.values()]
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
     .slice(-200);
 }

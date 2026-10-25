@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
+import {DeleteMessage} from './delete-message';
 import {LoadingSkeleton} from './loading-skeleton';
 import { MessageReactions, useConversationReactions } from "./chat-reactions";
 import { Markdown } from "./markdown";
@@ -258,12 +259,12 @@ export default function TeamDashboard({
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
           filter: `workspace_id=eq.${workspaceId}`,
         },
-        (p) => { if (live) setMessages(prev => mergeTeamMessages(prev, [p.new as TeamMessageRow])); },
+        (p) => { if (live && p.new && "id" in p.new) setMessages(prev => mergeTeamMessages(prev, [p.new as TeamMessageRow])); },
       )
       .on(
         "postgres_changes",
@@ -517,7 +518,8 @@ export default function TeamDashboard({
             </div>
           )}
           <p className="event-copy">{m.body}</p>
-          <MessageReactions messageId={m.id} reactions={reactions} />
+          {!m.deleted_at&&<MessageReactions messageId={m.id} reactions={reactions} />}
+          {!m.deleted_at&&m.author_type==='human'&&m.kind==='text'&&(m.author_user_id??m.image_author_id)===userId&&userId&&<DeleteMessage workspaceId={workspaceId} conversationId="team" messageId={m.id} userId={userId} onDeleted={()=>setMessages(rows=>rows.map(row=>row.id===m.id?{...row,body:'Message deleted',images:[],deleted_at:new Date().toISOString()}:row))} />}
           <div className="event-footer">
             <span>{id}</span>
             {c?.status === "proposed" && canApprove && (
@@ -563,7 +565,8 @@ export default function TeamDashboard({
             {m.body && <div className="message-body">{ai ? <Markdown text={m.body} /> : m.body}</div>}
             <ChatImages workspaceId={workspaceId} images={m.images} />
           </div>
-          <MessageReactions messageId={m.id} reactions={reactions} />
+          {!m.deleted_at&&<MessageReactions messageId={m.id} reactions={reactions} />}
+          {!m.deleted_at&&m.author_type==='human'&&m.kind==='text'&&(m.author_user_id??m.image_author_id)===userId&&userId&&<DeleteMessage workspaceId={workspaceId} conversationId="team" messageId={m.id} userId={userId} onDeleted={()=>setMessages(rows=>rows.map(row=>row.id===m.id?{...row,body:'Message deleted',images:[],deleted_at:new Date().toISOString()}:row))} />}
         </div>
       </article>
     );

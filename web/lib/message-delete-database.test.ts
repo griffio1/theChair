@@ -1,0 +1,44 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {PGlite} from '@electric-sql/pglite';
+test('deletion checks authors, isolates chats, retires images and blocks stale retries',async()=>{
+ const db=new PGlite(),owner=randomUUID(),other=randomUUID();
+ try{
+  await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;
+   create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb default '{}',email_confirmed_at timestamptz);
+   create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
+   grant usage on schema auth to authenticated;create schema storage;
+   create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+   create table messages(id uuid primary key default gen_random_uuid(),workspace_id uuid not null,author_type text,author_name text,kind text,body text,created_at timestamptz default now());`);
+  for(const id of [owner,other])await db.query('insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())',[id,`${id}@example.com`]);
+  for(const file of ['workspaces.sql','chat-images.sql','chat-reactions.sql','message-delete.sql','message-delete.sql'])await db.exec(await readFile(new URL(`../sql/${file}`,import.meta.url),'utf8'));
+  const as=async(id:string)=>{await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id]);await db.exec('set role authenticated');};
+  await as(owner);
+  const created=(await db.query<{w:any}>("select chair_create_workspace('Deletion check') w")).rows[0].w;
+  const w=created.workspace.id,c=created.chat.id,msg=randomUUID(),team=randomUUID(),system=randomUUID(),image=randomUUID(),client=randomUUID();
+  await db.exec('reset role');
+  await db.query("insert into chair_memberships(workspace_id,user_id,display_name,role) values($1,$2,'Same name','member')",[w,other]);
+  await db.query("insert into chair_messages(id,workspace_id,chat_id,author_id,author_name,body,client_message_id) values($1,$2,$3,$4,'Same name','Private body',$5)",[msg,w,c,owner,client]);
+  await db.query("insert into messages(id,workspace_id,author_type,author_name,kind,body,author_user_id) values($1,$2,'human','Same name','text','Team body',$3),($4,$2,'system','Same name','conflict','Issue',$3)",[team,w,owner,system]);
+  await db.query("insert into chair_chat_images(id,workspace_id,uploaded_by,client_upload_id,name,width,height,size,content_hash,object_path,ready,message_id) values($1,$2,$3,$4,'image',1,1,20,'hash','private/path',true,$5)",[image,w,owner,randomUUID(),msg]);
+  const remove=(chat:string|null,id:string)=>db.query('select chair_delete_message($1,$2,$3)',[w,chat,id]);
+  await as(other);await assert.rejects(remove(c,msg),(e:any)=>e.code==='42501');await assert.rejects(remove(null,team));
+  await db.query("select chair_set_reaction($1,$2,$3,'👍',true)",[w,c,msg]);
+  await as(owner);await assert.rejects(remove(randomUUID(),msg));await assert.rejects(remove(null,system));
+  await remove(c,msg);await remove(c,msg);await remove(null,team);
+  const row=(await db.query<any>('select body,images,deleted_at from chair_messages where id=$1',[msg])).rows[0];
+  assert.equal(row.body,'Message deleted');assert.deepEqual(row.images,[]);assert(row.deleted_at);
+  assert.equal((await db.query('select * from chair_chat_images where id=$1',[image])).rows.length,0);
+  await assert.rejects(db.query("select chair_set_reaction($1,$2,$3,'👍',true)",[w,c,msg]));
+  await assert.rejects(db.query('select chair_send_images($1,$2,$3,$4,$5)',[w,c,'Private body',client,[]]),(e:any)=>e.code==='23505');
+  await db.exec('reset role');
+  const retired=(await db.query<any>('select * from chair_chat_images where id=$1',[image])).rows[0];assert.equal(retired.ready,false);assert.equal(retired.message_id,null);
+  assert.equal((await db.query('select * from chair_message_reactions where chat_message_id=$1',[msg])).rows.length,0);
+  await db.query("insert into messages(workspace_id,author_type,author_name,kind,body) values($1,'human','Same name','text','Legacy')",[w]);
+  const legacy=(await db.query<any>("select id from messages where body='Legacy'")).rows[0].id;
+  await as(owner);await assert.rejects(remove(null,legacy));
+  await db.exec('set role anon');await assert.rejects(remove(c,msg));
+ }finally{await db.close();}
+});

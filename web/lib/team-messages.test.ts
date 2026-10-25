@@ -9,6 +9,13 @@ const message = (n: number, changes: Partial<Message> = {}): Message => ({
   createdAt: `2026-10-24T12:00:00.000Z`, ...changes,
 });
 
+test("a delayed snapshot cannot restore deleted message contents", () => {
+  const [original]=teamMessageRows([message(1)]);
+  const removed={...original,body:"Message deleted",images:[],deleted_at:"2026-10-25T12:00:00Z"};
+  assert.deepEqual(mergeTeamMessages([removed],[original]),[removed]);
+  assert.deepEqual(mergeTeamMessages([original],[removed]),[removed]);
+});
+
 test("API replies show persisted messages and wait for the ledger's real proposal UUID", () => {
   const reply = [message(1), message(2, {id:"auth-login@2",kind:"contract_proposal",refId:"auth-login@2"}),
     message(3, {author:{type:"ai",name:"theChair AI"}})];

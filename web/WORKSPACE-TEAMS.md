@@ -37,6 +37,19 @@ from the repository root. It creates and removes only disposable test records.
 
 ## Access and data
 
+Project info starts loading as soon as workspace membership is known, in parallel
+with the larger workspace detail request. Skeletons cover account startup,
+workspace lists, project descriptions, agreements and messages. Hidden team
+dashboards pause their polling and subscriptions.
+
+Message deletion requires `sql/message-delete.sql` before deployment. Authors can
+delete their own regular chat messages and newly attributed team messages. Old
+team image posts retain verified ownership; old text posts without a user ID
+cannot safely be assigned by display name. Issues and agreements cannot be deleted.
+Deletion clears content and reactions, revokes image access immediately, and keeps
+a “Message deleted” placeholder to prevent stale retries from recreating content.
+Retired image objects retain their paths for the existing upload cleanup to retry.
+
 All original ledger tables now carry a required `workspace_id`. The migration
 attributes existing rows to the explicitly approved Test67 binding; it does not
 copy or delete that history. Contract IDs/versions and extraction caches are

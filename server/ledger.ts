@@ -128,8 +128,9 @@ export async function getMessages(limit = 30): Promise<Message[]> {
   }));
 }
 
-export async function postMessage(m: Omit<Message, "id" | "createdAt">): Promise<Message> {
+export async function postMessage(m: Omit<Message, "id" | "createdAt">, authorUserId?: string): Promise<Message> {
   const [r] = await insert<Row>("messages", {
+    ...(authorUserId && m.author.type === "human" ? {author_user_id:authorUserId} : {}),
     author_type: m.author.type,
     author_name: m.author.name,
     kind: m.kind,
