@@ -24,23 +24,23 @@ Only the owner of a directory edits it. Everyone else asks in the main chat.
 
 ## Current contracts
 <!-- THECHAIR:CONTRACTS:START -->
-- `POST /api/workspaces/:workspaceId/conversations/:conversationId/messages/:messageId/reactions` (workspace-reaction-set v1): request `{ emoji: string, active: boolean }` → response `{ reactions: array }`
-- `GET /api/workspaces/:workspaceId/conversations/:conversationId/reactions` (workspace-reactions-read v1): request `{  }` → response `{ reactions: array }`
-- `GET /api/workspaces/:workspaceId/images/:imageId` (workspace-image-read v1): request `{  }` → response `{  }`
-- `POST /api/workspaces/:workspaceId/images` (workspace-image-upload v1): request `{ file: unknown, clientUploadId: string }` → response `{ image: object }`
-- `POST /api/workspaces/:workspaceId/team/images` (workspace-team-image-send v1): request `{ body: string, clientMessageId: string, imageIds: array }` → response `{ messages: array }`
 - `POST /api/auth/login` (auth-login v1): request `{ email: string, password: string }` → response `{ userId: string, token: string }`
-- `POST /api/workspaces/:workspaceId/integrations/agents` (workspace-agent-create v1): request `{ label: string }` → response `{ credential: object, token: string }`
-- `POST /api/workspaces/:workspaceId/integrations/agents/:credentialId/revoke` (workspace-agent-revoke v1): request `{  }` → response `{ credential: object }`
+- `POST /api/invitations/accept` (workspace-invite-accept v1): request `{ token: string }` → response `{ workspaceId: string }`
+- `POST /api/workspaces` (workspace-create v1): request `{ name: string }` → response `{ workspace: object, chat: object }`
+- `GET /api/workspaces` (workspace-list v1): request `{  }` → response `{ workspaces: array }`
+- `GET /api/workspaces/:workspaceId` (workspace-detail v1): request `{  }` → response `{ workspace: object, chats: array, members: array, invitations: array, contracts: array, conflicts: array }`
 - `POST /api/workspaces/:workspaceId/chats` (workspace-chat-create v1): request `{ title: string }` → response `{ chat: object }`
 - `GET /api/workspaces/:workspaceId/chats/:chatId/messages` (workspace-chat-messages v1): request `{  }` → response `{ messages: array }`
 - `POST /api/workspaces/:workspaceId/chats/:chatId/messages` (workspace-chat-send v2): request `{ body: string, clientMessageId: string, imageIds?: array }` → response `{ messages: array }`
-- `POST /api/workspaces` (workspace-create v1): request `{ name: string }` → response `{ workspace: object, chat: object }`
-- `GET /api/workspaces/:workspaceId` (workspace-detail v1): request `{  }` → response `{ workspace: object, chats: array, members: array, invitations: array, contracts: array, conflicts: array }`
+- `POST /api/workspaces/:workspaceId/conversations/:conversationId/messages/:messageId/reactions` (workspace-reaction-set v1): request `{ emoji: string, active: boolean }` → response `{ reactions: array }`
+- `GET /api/workspaces/:workspaceId/conversations/:conversationId/reactions` (workspace-reactions-read v1): request `{  }` → response `{ reactions: array }`
+- `POST /api/workspaces/:workspaceId/images` (workspace-image-upload v1): request `{ file: unknown, clientUploadId: string }` → response `{ image: object }`
+- `GET /api/workspaces/:workspaceId/images/:imageId` (workspace-image-read v1): request `{  }` → response `{  }`
 - `GET /api/workspaces/:workspaceId/integrations` (workspace-integrations v1): request `{  }` → response `{ repository: unknown, credentials: array, webhookUrl: string }`
-- `POST /api/invitations/accept` (workspace-invite-accept v1): request `{ token: string }` → response `{ workspaceId: string }`
-- `POST /api/workspaces/:workspaceId/invitations` (workspace-invite v1): request `{ email: string }` → response `{ invitation: object }`
-- `GET /api/workspaces` (workspace-list v1): request `{  }` → response `{ workspaces: array }`
+- `POST /api/workspaces/:workspaceId/integrations/agents` (workspace-agent-create v1): request `{ label: string }` → response `{ credential: object, token: string }`
+- `POST /api/workspaces/:workspaceId/integrations/agents/:credentialId/revoke` (workspace-agent-revoke v1): request `{  }` → response `{ credential: object }`
 - `POST /api/workspaces/:workspaceId/integrations/repository` (workspace-repository-connect v1): request `{ repository: string, token: string, webhookSecret: string }` → response `{ repository: object }`
+- `POST /api/workspaces/:workspaceId/invitations` (workspace-invite v1): request `{ email: string }` → response `{ invitation: object }`
 - `POST /api/workspaces/:workspaceId/members/:userId/role` (workspace-member-role v1): request `{ role: string }` → response `{ member: object }`
+- `POST /api/workspaces/:workspaceId/team/images` (workspace-team-image-send v1): request `{ body: string, clientMessageId: string, imageIds: array }` → response `{ messages: array }`
 <!-- THECHAIR:CONTRACTS:END -->
