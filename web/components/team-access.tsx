@@ -116,6 +116,7 @@ export default function TeamAccess({
     <TeamDashboard
       key={`${userId}:${access.workspaceId}`}
       workspaceId={access.workspaceId}
+      userId={access.userId}
       name={access.name}
       workspaceName={access.workspaceName}
       canApprove={access.owner}

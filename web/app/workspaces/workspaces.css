@@ -686,6 +686,20 @@
   display: flex;
   gap: 12px;
 }
+.wp-message-stack { max-width:min(78%,680px); }
+.wp-message-bubble { border:1px solid var(--wp-border); border-radius:4px 16px 16px 16px; padding:11px 15px; margin-top:6px; background:var(--wp-surface); box-shadow:0 2px 5px #00000004; }
+.wp-message .wp-message-bubble p { margin:0; line-height:1.65; }
+.wp-message-own { flex-direction:row-reverse; }
+.wp-message-own .wp-message-meta { justify-content:flex-end; }
+.wp-message-own .wp-message-bubble { border-radius:16px 4px 16px 16px; background:color-mix(in srgb,var(--wp-accent) 11%,var(--wp-surface)); border-color:color-mix(in srgb,var(--wp-accent) 25%,var(--wp-border)); }
+.wp-message-own .message-reactions { margin-left:auto; }
+.chat-skeleton { display:flex; flex-direction:column; gap:22px; padding:12px 0; }
+.chat-skeleton > div { height:64px; width:65%; border-radius:4px 16px 16px 16px; background:linear-gradient(90deg,var(--wp-soft),var(--wp-surface),var(--wp-soft)); background-size:200% 100%; animation:chat-loading 1.4s ease-in-out infinite; }
+.chat-skeleton > div:nth-child(2) { align-self:flex-end; width:48%; border-radius:16px 4px 16px 16px; }
+.chat-skeleton > div:nth-child(3) { width:57%; }
+@keyframes chat-loading { to { background-position:-200% 0; } }
+@media(prefers-reduced-motion:reduce) { .chat-skeleton > div { animation:none; } }
+@media(max-width:600px) { .wp-message-stack { max-width:calc(100% - 44px); } }
 .wp-message > div {
   min-width: 0;
 }

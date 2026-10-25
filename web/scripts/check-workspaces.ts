@@ -164,6 +164,32 @@ async function main() {
     assert.deepEqual(detail.data.invitations, []);
     assert.deepEqual(detail.data.contracts, []);
     assert.deepEqual(detail.data.conflicts, []);
+    const reactions = `${base}/conversations/${c}/reactions`;
+    const react = `${base}/conversations/${c}/messages/${sent.data.messages[0].id}/reactions`;
+    assert.equal((await request(reactions)).status,401);
+    assert.equal((await request(reactions,outsider.token)).status,403);
+    assert.equal((await request(react,owner.token,{emoji:"invalid",active:true})).status,400);
+    const liked = await request(react,owner.token,{emoji:"👍",active:true});
+    assert.equal(liked.status,200,"reaction add");
+    assert.equal(liked.data.reactions[0].count,1);
+    assert.equal((await request(react,owner.token,{emoji:"👍",active:true})).data.reactions[0].count,1);
+    const sharedReaction = await request(reactions,member.token);
+    assert.equal(sharedReaction.data.reactions[0].reactedByMe,false);
+    assert.equal((await request(react,member.token,{emoji:"👍",active:true})).data.reactions[0].count,2);
+    assert.equal((await request(react,member.token,{emoji:"👍",active:false})).data.reactions[0].count,1);
+    assert.equal((await request(`${base}/conversations/${createdChat.data.chat.id}/messages/${sent.data.messages[0].id}/reactions`,owner.token,{emoji:"👍",active:true})).status,403);
+    const teamMessage=await admin.from("messages").insert({workspace_id:w,author_type:"human",author_name:"Disposable owner",kind:"text",body:"Reaction test"}).select("id").single();
+    assert.equal(teamMessage.error,null);
+    assert.equal((await request(`${base}/conversations/team/messages/${teamMessage.data!.id}/reactions`,owner.token,{emoji:"❤️",active:true})).status,200);
+    assert.equal((await request(`${base}/conversations/team/reactions`,member.token)).data.reactions[0].emoji,"❤️");
+    assert.equal((await request(reactions,member.token)).data.reactions.length,1,"team reactions stay separate");
+    const started = performance.now();
+    const startup = await Promise.all([
+      request("/api/workspaces",owner.token), request(base,owner.token), request(`${base}/chats/${c}/messages`,owner.token),
+    ]);
+    assert.ok(startup.every(result=>result.status===200));
+    console.log(`PASS: parallel authenticated chat startup requests completed in ${Math.round(performance.now()-started)} ms (warm API check, not browser paint).`);
+    console.log("PASS: shared reaction counts, add/remove retries, team/workspace separation and outsider protection.");
     assert.equal(
       (
         await request(`${base}/invitations`, member.token, {

@@ -11,6 +11,8 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
 import { AppearancePicker } from "../../components/appearance-picker";
 import { ChatImages, ImagePicker } from "../../components/chat-images";
+import { lastConversation, rememberConversation } from "../../lib/chat-selection";
+import { MessageReactions, useConversationReactions } from "../../components/chat-reactions";
 import type {
   Workspace,
   WorkspaceChat,
@@ -185,7 +187,7 @@ export default function Workspaces() {
   }>({ scope: "", items: [] });
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [uploadScope, setUploadScope] = useState("");
-  const [view, setView] = useState<View>("home");
+  const [view, setView] = useState<View>("chat");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -213,6 +215,7 @@ export default function Workspaces() {
   const chat = current?.chats.find((c) => c.id === activeChat);
   const scope = `${activeSpace}/${activeChat}`;
   const visibleMessages = history.scope === scope ? history.items : [];
+  const reactions = useConversationReactions(activeSpace, activeChat, userId, view === "chat" && visibleMessages.length > 0);
   const draft = drafts[scope]?.body ?? "";
   const draftImages = drafts[scope]?.images ?? [];
   const uploading = uploadScope === scope;
@@ -259,11 +262,12 @@ export default function Workspaces() {
     setSpaces([]);
     setTeamWorkspace("");
     setDetail(null);
-    setActiveSpace("");
-    setActiveChat("");
+    const saved = userId ? lastConversation(userId) : null;
+    setActiveSpace(saved?.workspaceId ?? "");
+    setActiveChat(saved?.chatId ?? "");
     setHistory({ scope: "", items: [] });
     setDrafts({});
-    setView("home");
+    setView("chat");
     setModal(null);
     setInviteUrl("");
     setField("");
@@ -283,6 +287,7 @@ export default function Workspaces() {
       .then((result) => {
         if (ctrl.signal.aborted) return;
         setSpaces(result.workspaces);
+        if (!result.workspaces.length) setView("home");
         setActiveSpace((id) =>
           result.workspaces.some((s) => s.id === id)
             ? id
@@ -331,6 +336,10 @@ export default function Workspaces() {
     };
   }, [activeSpace, userId, refresh]);
 
+  useEffect(() => {
+    if (userId && current && chat) rememberConversation(userId, activeSpace, activeChat);
+  }, [userId, current?.workspace.id, chat?.id, activeSpace, activeChat]);
+
   const mergeMessages = useCallback(
     (key: string, items: WorkspaceMessage[]) => {
       setHistory((previous) => {
@@ -354,7 +363,7 @@ export default function Workspaces() {
   );
 
   useEffect(() => {
-    if (!activeSpace || !activeChat || !userId || !chat) return;
+    if (!activeSpace || !activeChat || !userId) return;
     const ctrl = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     setLoadingMessages(true);
@@ -391,7 +400,6 @@ export default function Workspaces() {
     activeChat,
     userId,
     scope,
-    chat?.id,
     mergeMessages,
     refresh,
   ]);
@@ -882,13 +890,13 @@ export default function Workspaces() {
                     </div>
                   )}
                 </>
-              ) : !current ? (
+              ) : !current && view !== "chat" ? (
                 <div className="wp-empty" role="status">
                   {error
                     ? "This workspace couldn’t be loaded."
                     : "Loading workspace…"}
                 </div>
-              ) : view === "people" ? (
+              ) : view === "people" && current ? (
                 <>
                   <section className="wp-page-heading">
                     <div>
@@ -1001,7 +1009,7 @@ export default function Workspaces() {
                     </p>
                   )}
                 </>
-              ) : view === "contracts" || view === "conflicts" ? (
+              ) : (view === "contracts" || view === "conflicts") && current ? (
                 <>
                   <section className="wp-page-heading">
                     <div>
@@ -1104,7 +1112,7 @@ export default function Workspaces() {
                     <header className="wp-chat-heading">
                       <div>
                         <div className="wp-eyebrow">
-                          {current.workspace.name}
+                          {current?.workspace.name ?? space?.name ?? "Your workspace"}
                         </div>
                         <h1>{chat?.title ?? "Conversation"}</h1>
                         <p>
@@ -1121,17 +1129,17 @@ export default function Workspaces() {
                       </button>
                     </header>
                     <div className="wp-messages" aria-busy={loadingMessages}>
-                      {loadingMessages && !visibleMessages.length ? (
-                        <div className="wp-empty" role="status">
-                          Loading conversation…
+                      {(loadingMessages || !activeChat) && !visibleMessages.length ? (
+                        <div className="chat-skeleton" role="status" aria-label="Loading conversation">
+                          <div /><div /><div />
                         </div>
                       ) : visibleMessages.length ? (
                         visibleMessages.map((m) => (
-                          <article className="wp-message" key={m.id}>
+                          <article className={`wp-message chat-reactable ${m.author.userId === userId ? "wp-message-own" : ""}`} key={m.id}>
                             <span className="wp-avatar">
                               {m.author.name.charAt(0).toUpperCase()}
                             </span>
-                            <div>
+                            <div className="wp-message-stack">
                               <div className="wp-message-meta">
                                 <strong>{m.author.name}</strong>
                                 <small>
@@ -1141,8 +1149,11 @@ export default function Workspaces() {
                                   )}
                                 </small>
                               </div>
-                              <p>{m.body}</p>
-                              <ChatImages workspaceId={activeSpace} images={m.images} />
+                              <div className="wp-message-bubble">
+                                {m.body && <p>{m.body}</p>}
+                                <ChatImages workspaceId={activeSpace} images={m.images} />
+                              </div>
+                              <MessageReactions messageId={m.id} reactions={reactions} />
                             </div>
                           </article>
                         ))
@@ -1169,6 +1180,7 @@ export default function Workspaces() {
                       )}
                       <div ref={bottom} />
                     </div>
+                    {reactions.error && <p className="reaction-error" role="alert">{reactions.error}</p>}
                     <form
                       className="wp-composer"
                       onSubmit={(e) => {
@@ -1227,11 +1239,11 @@ export default function Workspaces() {
                     <dl>
                       <div>
                         <dt>People</dt>
-                        <dd>{current.members.length}</dd>
+                        <dd>{current?.members.length ?? "…"}</dd>
                       </div>
                       <div>
                         <dt>Conversations</dt>
-                        <dd>{current.chats.length}</dd>
+                        <dd>{current?.chats.length ?? "…"}</dd>
                       </div>
                     </dl>
                     <button

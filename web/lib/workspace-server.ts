@@ -220,6 +220,21 @@ export async function workspaceRequest(req: Request, parts: string[]) {
   }
   if (!parts[0]) throw new WorkspaceError(404, "Route not found.");
   const workspaceId = validId(parts[0]);
+  if (req.method === "GET" && parts.length === 4 && parts[1] === "chats" && parts[3] === "messages") {
+    const chatId = validId(parts[2]);
+    // These reads all use the caller's JWT/RLS; independent authorization and data
+    // reads can run together instead of adding three sequential network waits.
+    const [, found, rows] = await Promise.all([
+      membership(ctx, workspaceId),
+      db.from("chair_chats").select("id").eq("workspace_id", workspaceId).eq("id", chatId).maybeSingle(),
+      db.from("chair_messages").select("id,workspace_id,chat_id,author_id,author_name,body,images,created_at")
+        .eq("workspace_id", workspaceId).eq("chat_id", chatId)
+        .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(200),
+    ]);
+    check(found.error); check(rows.error);
+    if (!found.data) throw new WorkspaceError(404, "Conversation unavailable.");
+    return { messages: (rows.data ?? []).reverse().map(message) };
+  }
   const role = await membership(ctx, workspaceId);
   if (parts.length === 1 && req.method === "GET") {
     const results = await Promise.all([
@@ -243,23 +258,16 @@ export async function workspaceRequest(req: Request, parts: string[]) {
         .select("id,email,expires_at,accepted_at")
         .eq("workspace_id", workspaceId)
         .order("created_at"),
+      db.from("contracts").select("*").eq("workspace_id", workspaceId).order("id").order("version", { ascending: false }),
+      db.from("conflicts").select("*").eq("workspace_id", workspaceId),
     ]);
     for (const r of results) check(r.error);
-    const [w, chats, members, invitations] = results;
+    const [w, chats, members, invitations, legacyContracts, legacyConflicts] = results;
     let contractRows: Row[];
     let conflictRows: Row[];
     {
       // Every ledger query is scoped, including when a user belongs to several teams.
       // Query with the caller's JWT so direct database RLS remains authoritative.
-      const [legacyContracts, legacyConflicts] = await Promise.all([
-        db
-          .from("contracts")
-          .select("*")
-          .eq("workspace_id", workspaceId)
-          .order("id")
-          .order("version", { ascending: false }),
-        db.from("conflicts").select("*").eq("workspace_id", workspaceId),
-      ]);
       check(legacyContracts.error);
       check(legacyConflicts.error);
       contractRows = (legacyContracts.data ?? []).map((r) => ({
@@ -354,18 +362,6 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       .maybeSingle();
     check(found.error);
     if (!found.data) throw new WorkspaceError(404, "Conversation unavailable.");
-    if (req.method === "GET") {
-      const { data, error } = await db
-        .from("chair_messages")
-        .select("id,workspace_id,chat_id,author_id,author_name,body,images,created_at")
-        .eq("workspace_id", workspaceId)
-        .eq("chat_id", chatId)
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(200);
-      check(error);
-      return { messages: (data ?? []).reverse().map(message) };
-    }
     if (req.method === "POST") {
       const body = await readBody(req);
       const { imageMessageInput } = await import("./chat-images");

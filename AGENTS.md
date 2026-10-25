@@ -24,6 +24,8 @@ Only the owner of a directory edits it. Everyone else asks in the main chat.
 
 ## Current contracts
 <!-- THECHAIR:CONTRACTS:START -->
+- `POST /api/workspaces/:workspaceId/conversations/:conversationId/messages/:messageId/reactions` (workspace-reaction-set v1): request `{ emoji: string, active: boolean }` → response `{ reactions: array }`
+- `GET /api/workspaces/:workspaceId/conversations/:conversationId/reactions` (workspace-reactions-read v1): request `{  }` → response `{ reactions: array }`
 - `GET /api/workspaces/:workspaceId/images/:imageId` (workspace-image-read v1): request `{  }` → response `{  }`
 - `POST /api/workspaces/:workspaceId/images` (workspace-image-upload v1): request `{ file: unknown, clientUploadId: string }` → response `{ image: object }`
 - `POST /api/workspaces/:workspaceId/team/images` (workspace-team-image-send v1): request `{ body: string, clientMessageId: string, imageIds: array }` → response `{ messages: array }`

@@ -6,6 +6,7 @@ import WorkspaceConnections from "./workspace-connections";
 import { AppearancePicker } from "../components/appearance-picker";
 import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
+import { MessageReactions, useConversationReactions } from "./chat-reactions";
 
 type Row = Record<string, any>;
 type View = "chat" | "conflicts" | "contracts";
@@ -133,11 +134,13 @@ function ContractCard({
 
 export default function TeamDashboard({
   name,
+  userId,
   workspaceId,
   workspaceName,
   canApprove,
 }: {
   name: string;
+  userId: string;
   workspaceId: string;
   workspaceName: string;
   canApprove: boolean;
@@ -155,6 +158,8 @@ export default function TeamDashboard({
   const [view, setView] = useState<View>("chat");
   const [connection, setConnection] = useState("Connecting");
   const [loading, setLoading] = useState(true);
+  const [loadingLedger, setLoadingLedger] = useState(true);
+  const reactions = useConversationReactions(workspaceId, "team", userId, view !== "contracts" && messages.length > 0);
   const [error, setError] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
 
@@ -180,30 +185,40 @@ export default function TeamDashboard({
   }
 
   useEffect(() => {
-    async function load() {
+    let active = true;
+    const ctrl = new AbortController();
+    setLoading(true);
+    setLoadingLedger(true);
+    async function loadMessages() {
       try {
         const { data: m, error: messageError } = await supabase
           .from("messages")
           .select("*")
           .eq("workspace_id", workspaceId)
           .order("created_at", { ascending: false })
-          .limit(200);
+          .limit(200).abortSignal(ctrl.signal);
         if (messageError) throw messageError;
-        setMessages((m ?? []).reverse());
-        const { data: c, error: conflictError } = await supabase
-          .from("conflicts")
-          .select("*")
-          .eq("workspace_id", workspaceId);
-        if (conflictError) throw conflictError;
-        setConflicts(Object.fromEntries((c ?? []).map((x) => [x.id, x])));
-        await loadContracts();
+        if (active) setMessages(previous => [...new Map([...(m ?? []), ...previous].map(row => [row.id,row])).values()]
+          .sort((a,b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)).slice(-200));
       } catch {
-        setError("Couldn’t load the workspace. Refresh to try again.");
+        if (active) setError("Couldn’t load the conversation. Refresh to try again.");
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     }
-    void load();
+    async function loadLedger() {
+      try {
+        const [result] = await Promise.all([
+          supabase.from("conflicts").select("*").eq("workspace_id", workspaceId).abortSignal(ctrl.signal),
+          loadContracts(),
+        ]);
+        if (result.error) throw result.error;
+        if (active) setConflicts(Object.fromEntries((result.data ?? []).map(row => [row.id,row])));
+      } catch { if (active) setError("Some team details could not load. Chat is still available."); }
+      finally { if (active) setLoadingLedger(false); }
+    }
+    void loadMessages();
+    void loadLedger();
     const ch = supabase
       .channel(`thechair:${workspaceId}`)
       .on(
@@ -261,6 +276,8 @@ export default function TeamDashboard({
         ),
       );
     return () => {
+      active = false;
+      ctrl.abort();
       void supabase.removeChannel(ch);
     };
   }, [workspaceId]);
@@ -366,7 +383,7 @@ export default function TeamDashboard({
       return (
         <article
           key={m.id}
-          className={`event-card ${open ? "conflict-card" : "resolved-card"}`}
+          className={`event-card chat-reactable ${open ? "conflict-card" : "resolved-card"}`}
         >
           <div className="event-heading">
             <span className="event-icon">
@@ -398,6 +415,7 @@ export default function TeamDashboard({
               <span>{c.suggested_fix}</span>
             </p>
           )}
+          <MessageReactions messageId={m.id} reactions={reactions} />
           <div className="event-footer">
             <span>
               {c?.agent ?? "Agent"}
@@ -424,7 +442,7 @@ export default function TeamDashboard({
         (x) => x.id === id && String(x.version) === version,
       );
       return (
-        <article key={m.id} className="event-card proposal-card">
+        <article key={m.id} className="event-card proposal-card chat-reactable">
           <div className="event-heading">
             <span className="event-icon">
               <Icon name="contracts" size={16} />
@@ -442,6 +460,7 @@ export default function TeamDashboard({
             </div>
           )}
           <p className="event-copy">{m.body}</p>
+          <MessageReactions messageId={m.id} reactions={reactions} />
           <div className="event-footer">
             <span>{id}</span>
             {c?.status === "proposed" && canApprove && (
@@ -465,7 +484,7 @@ export default function TeamDashboard({
     return (
       <article
         key={m.id}
-        className={`message ${system ? "system-message" : ""}`}
+        className={`message chat-reactable ${system ? "system-message" : ""} ${ai ? "message-ai" : ""}`}
       >
         <div className={`avatar ${ai || system ? "ai-avatar" : ""}`}>
           {ai || system ? (
@@ -482,8 +501,11 @@ export default function TeamDashboard({
             {ai && <span className="ai-label">AI</span>}
             {system && <span className="ai-label">System</span>}
           </div>
-          <div className="message-body">{m.body}</div>
-          <ChatImages workspaceId={workspaceId} images={m.images} />
+          <div className="team-message-bubble">
+            {m.body && <div className="message-body">{m.body}</div>}
+            <ChatImages workspaceId={workspaceId} images={m.images} />
+          </div>
+          <MessageReactions messageId={m.id} reactions={reactions} />
         </div>
       </article>
     );
@@ -707,14 +729,14 @@ export default function TeamDashboard({
                   {approved.map((c) => (
                     <ContractCard key={c.id} contract={c} />
                   ))}
-                  {!loading && approved.length === 0 && (
+                  {!loadingLedger && approved.length === 0 && (
                     <EmptyState
                       icon="contracts"
                       title="Your first agreement starts here"
                       text="Propose a contract in the main chat. Approved contracts will appear here."
                     />
                   )}
-                  {loading && (
+                  {loadingLedger && (
                     <p className="loading-state" role="status">
                       Loading contracts…
                     </p>
@@ -727,7 +749,7 @@ export default function TeamDashboard({
                     aria-live="polite"
                     aria-busy={loading}
                   >
-                    {loading ? (
+                    {loading && !visibleMessages.length ? (
                       <p className="loading-state" role="status">
                         Loading your workspace…
                       </p>
@@ -752,6 +774,7 @@ export default function TeamDashboard({
                   </div>
                   {view === "chat" && (
                     <div className="composer-wrap">
+                      {reactions.error && <p className="reaction-error" role="alert">{reactions.error}</p>}
                       <form
                         className="composer"
                         onSubmit={(e) => {
@@ -825,10 +848,10 @@ export default function TeamDashboard({
                   {approved.map((c) => (
                     <ContractCard key={c.id} contract={c} compact />
                   ))}
-                  {loading && (
+                  {loadingLedger && (
                     <p className="loading-state">Loading contracts…</p>
                   )}
-                  {!loading && approved.length === 0 && (
+                  {!loadingLedger && approved.length === 0 && (
                     <p className="empty-contracts">
                       Your approved API contracts will appear here.
                     </p>

@@ -680,6 +680,11 @@ h2 {
   padding: 0 20px 14px;
   flex-shrink: 0;
 }
+.team-message-bubble { padding:12px 15px; margin-top:6px; border:1px solid var(--line); border-radius:4px 16px 16px 16px; background:var(--paper); box-shadow:0 2px 5px #00000004; }
+.team-message-bubble .message-body { margin:0; line-height:1.7; }
+.message-content { min-width:0; max-width:min(85%,720px); }
+.message-ai .team-message-bubble { background:color-mix(in srgb,var(--blue) 8%,var(--paper)); border-color:color-mix(in srgb,var(--blue) 20%,var(--line)); }
+.system-message .team-message-bubble { background:var(--canvas); }
 .composer {
   border: 1px solid #dfe2ea;
   border-radius: 9px;

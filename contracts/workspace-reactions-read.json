@@ -1,0 +1,17 @@
+{
+  "id": "workspace-reactions-read",
+  "name": "Read conversation reactions",
+  "method": "GET",
+  "path": "/api/workspaces/:workspaceId/conversations/:conversationId/reactions",
+  "request": [],
+  "response": [
+    {
+      "name": "reactions",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}

@@ -1,0 +1,19 @@
+.chat-reactable { position:relative; }
+.message-reactions { position:relative; margin-top:8px; width:fit-content; max-width:100%; }
+.reaction-counts { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+.reaction-count, .reaction-trigger { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:20px; padding:4px 9px; color:var(--ink); background:var(--paper); font-size:12px; }
+.reaction-count[aria-pressed="true"] { border-color:var(--wp-accent,var(--blue)); background:color-mix(in srgb,var(--wp-accent,var(--blue)) 13%,var(--paper)); }
+.reaction-trigger { border-color:transparent; background:transparent; color:var(--muted); }
+.reaction-trigger > span { font-size:10px; }
+.reaction-saving { font-size:10px; color:var(--muted); }
+.reaction-picker { position:absolute; z-index:20; bottom:calc(100% + 7px); left:0; display:flex; gap:2px; padding:5px; border:1px solid var(--line); border-radius:30px; background:var(--paper); box-shadow:0 6px 24px #0002; opacity:0; visibility:hidden; transform:translateY(7px) scale(.96); transform-origin:bottom left; transition:opacity .16s ease,transform .16s ease,visibility 0s .16s; }
+.reaction-picker button { display:grid; place-items:center; width:34px; height:34px; padding:0; border:0; border-radius:50%; background:transparent; font-size:22px; transition:background .15s ease,transform .15s ease; }
+.reaction-picker button:hover, .reaction-picker button:focus-visible { background:var(--canvas); transform:translateY(-3px) scale(1.15); }
+.reaction-picker button[aria-pressed="true"] { background:color-mix(in srgb,var(--blue) 15%,var(--paper)); }
+@media(hover:hover) {
+  .chat-reactable:hover .reaction-picker { opacity:1; visibility:visible; transform:translateY(0) scale(1); transition-delay:.55s,.55s,.55s; }
+}
+.message-reactions[data-open] .reaction-picker, .reaction-picker:focus-within { opacity:1; visibility:visible; transform:translateY(0) scale(1); transition-delay:0s; }
+.wp-message-own .reaction-picker { left:auto; right:0; transform-origin:bottom right; }
+.reaction-error { color:var(--ink); font-size:12px; padding:8px 16px; margin:0; }
+@media(prefers-reduced-motion:reduce) { .reaction-picker, .reaction-picker button { transform:none !important; transition:none !important; } }

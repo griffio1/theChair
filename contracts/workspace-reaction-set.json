@@ -1,0 +1,28 @@
+{
+  "id": "workspace-reaction-set",
+  "name": "Add or remove my message reaction",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/conversations/:conversationId/messages/:messageId/reactions",
+  "request": [
+    {
+      "name": "emoji",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "required": true
+    }
+  ],
+  "response": [
+    {
+      "name": "reactions",
+      "type": "array",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter"
+}
