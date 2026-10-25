@@ -103,6 +103,9 @@ Use `agent/<tool>/<topic>` branch names to identify the pushing agent.
 For Vercel, use the existing project, Root Directory `web`, Next.js preset, and
 include files outside the root directory in the build. Set the server/browser
 environment variables on that project. Parag manages the shared deployment.
+Public signup needs Turnstile and Supabase Auth CAPTCHA/SMTP settings, and
+scheduled check retries need `CRON_SECRET` plus matching GitHub Actions settings;
+see [deployment](web/DEPLOYMENT.md).
 
 ## Validate
 
@@ -143,8 +146,11 @@ contract changes require a human-approved proposal.
 
 This hackathon MVP detects API contract mismatches; it is not a general proof of
 application correctness. Deterministic extraction supports limited source
-patterns. Push processing is asynchronous: check Vercel logs and redeliver a
-webhook if processing fails after acceptance.
+patterns. Push processing is asynchronous: accepted pushes are saved to a
+private queue and retried by the scheduled job runner when it is enabled. Check
+failed workflow runs and Vercel logs. Usage is capped per user, workspace and
+site; see `web/sql/production-limits.sql`. Account and data deletion requests
+go to paragsahani60@gmail.com.
 
 Changed source goes to Gemini when enabled, and team AI conversations go to the
 configured chat provider. Use code/data your team is authorized to send. Secrets

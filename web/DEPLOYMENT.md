@@ -9,8 +9,7 @@
   The API routes import the repo's server, engine, analyzer, github and shared folders.
 - Install command: `npm ci`; build command: `npm run build`.
 - Keep the default Next.js output directory.
-- Production branch: `main`. Workspace and team-access changes are developed in
-  `agent/codex/workspaces` and `agent/codex/secure-team` respectively.
+- Production branch: `main`. Scheduled GitHub Actions only run from `main`.
 
 The local production build passed on Node 24.19.0 with Next.js 15.5.28.
 
@@ -35,6 +34,9 @@ logs. Server credentials must not use a `NEXT_PUBLIC_` prefix.
 | `GITHUB_TOKEN`                  | Repository-scoped token with Contents read/write                     |
 | `GITHUB_REPO`                   | `griffio1/theChair`                                                  |
 | `GITHUB_WEBHOOK_SECRET`         | Agree on a shared value with Parag before enabling GitHub deliveries |
+| `THECHAIR_PUBLIC_URL`           | `https://the-chair-peach.vercel.app`; invitation and webhook links   |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY`| Turnstile public site key; rebuild after changing it                 |
+| `CRON_SECRET`                   | Private random value, 32+ characters; guards the job runner          |
 
 `THECHAIR_API_URL`, `THECHAIR_AGENT`, and `THECHAIR_DEVELOPER` configure the local
 MCP server and hook. They are not needed by the hosted dashboard. Keep local MCP
@@ -50,23 +52,54 @@ Each workspace now manages repository credentials and its own webhook secret
 through **Repository & agents**; global GitHub secrets no longer route requests.
 See [the rollout and Parag handoff](WORKSPACE-TEAMS.md).
 
+## Public signup and recovery
+
+Production signup refuses to run without CAPTCHA configuration.
+
+1. Create a Cloudflare Turnstile widget in **Managed** mode for the deployment
+   hostname. Put its site key in `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and redeploy.
+2. In Supabase Auth → Attack Protection, enable CAPTCHA, choose Turnstile and
+   paste the widget secret there. The secret never goes in Vercel or the repo.
+3. In Supabase Auth, configure production SMTP, set the site URL, and allow the
+   deployment's `/workspaces` and `/recover` redirect URLs. Email confirmation
+   is required; confirm signup and recovery emails arrive before launch.
+
+## Scheduled check retries
+
+GitHub pushes are saved to a private queue and processed by
+`GET /api/internal/jobs`, which requires `Authorization: Bearer <CRON_SECRET>`
+and returns `{ processed, failed }`. The `Retry saved code checks` workflow
+calls it every five minutes once configured:
+
+- Vercel: `CRON_SECRET` as above.
+- GitHub Actions secret `THECHAIR_JOB_SECRET`: the same value.
+- Repository variables `THECHAIR_JOB_URL=https://the-chair-peach.vercel.app/api/internal/jobs`
+  and `THECHAIR_JOB_RUNNER_ENABLED=true`. Without the flag the workflow skips.
+
+A failed run means a saved check failed; inspect the private job table and the
+Vercel logs. Usage caps are enforced in the database; see the header of
+`web/sql/production-limits.sql` for the current limits.
+
 ## First deployment
 
-The home page redirects to the workspace sign-in flow. Workspace routes enforce
+The home page is the public landing page; signed-in work happens under
+`/workspaces`. Workspace routes enforce
 membership; original ledger routes require membership in the explicitly bound
 team workspace. Only owners can approve changes. MCP and hook clients require
 their private `THECHAIR_AGENT_TOKEN`; GitHub deliveries require a signature.
 
-Before using the new workspaces, apply `web/sql/workspaces.sql` followed by
-`web/sql/secure-team.sql` to Supabase and
-allow the deployment's `/workspaces` URL in Supabase Auth redirect settings.
+For a new database, apply the migrations in the order listed in
+[workspace setup](WORKSPACE-TEAMS.md#deployment-and-current-handoff). The shared
+project already has all of them; do not rerun them.
 See `web/WORKSPACES.md` for identity, invitation, and verification details.
 
 1. Connect Vercel and select the account/team that should own the project.
 2. Set the project settings and environment variables above.
-3. Check signed-out `/` redirects to `/workspaces`, anonymous `/api/contracts`
+3. Check signed-out `/` shows the landing page, anonymous `/api/contracts`
    returns 401, and a member of the bound team can open `/team`. Use a configured
    MCP client to verify `auth-login` is still available with the private token.
+   Walk through signup, recovery, chat, images, reactions, themes and a phone-width
+   layout in a browser.
 4. Coordinate the production promotion and webhook configuration with Parag.
 
 The webhook endpoint will be `https://<deployment>/api/github/webhook`, with push

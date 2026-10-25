@@ -51,9 +51,10 @@ Reference: [GitHub token permissions](https://docs.github.com/en/rest/authentica
 
 ## Deployment and current handoff
 
-The shared Supabase project has all six migrations applied: `workspaces.sql`,
+The shared Supabase project has all nine migrations applied: `workspaces.sql`,
 `secure-team.sql`, `workspace-teams.sql`, `workspace-roles.sql`, `chat-images.sql`,
-then `chat-reactions.sql`. No migration is needed for the readiness fixes.
+`chat-reactions.sql`, then the production set `production-limits.sql`,
+`webhook-jobs.sql` and `approval-publishing.sql`. Do not rerun any of them.
 For a separate database, first install `supabase/schema.sql` and `workspaces.sql`,
 create the intended owner's workspace, and review the explicit destination UUID
 in `secure-team.sql` before continuing. Its Test67 binding is specific to the

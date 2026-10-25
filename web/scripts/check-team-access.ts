@@ -45,9 +45,8 @@ async function main() {
       .single();
     if (binding.error) throw new Error("Apply secure-team.sql first.");
     workspaceId = binding.data.workspace_id;
-    const root = await request("/");
-    assert.equal(root.status, 307);
-    assert.equal(root.location, "/workspaces");
+    // The home page is the public landing page; private routes are checked below.
+    assert.equal((await request("/")).status, 200);
     const paths = [
       "/api/chat",
       "/api/preflight",
