@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
-import TeamDashboard from "./team-dashboard";
+import { workspaceHref } from "../lib/workspace-navigation";
 
 type Access = {
   userId: string;
@@ -39,7 +39,7 @@ export default function TeamAccess({
     if (userId === undefined) return;
     if (!userId) {
       setAccess(null);
-      location.replace("/workspaces");
+      location.replace(workspaceHref(requested ?? ""));
       return;
     }
     let active = true;
@@ -98,6 +98,11 @@ export default function TeamAccess({
       clearTimeout(timer);
     };
   }, [userId, requested]);
+  useEffect(() => {
+    if (access && access.userId === userId && (!requested || access.workspaceId === requested)) {
+      location.replace(workspaceHref(access.workspaceId));
+    }
+  }, [access, userId, requested]);
   if (
     !access ||
     access.userId !== userId ||
@@ -112,14 +117,5 @@ export default function TeamAccess({
         <a href="/workspaces">Choose a workspace</a>
       </main>
     );
-  return (
-    <TeamDashboard
-      key={`${userId}:${access.workspaceId}`}
-      workspaceId={access.workspaceId}
-      userId={access.userId}
-      name={access.name}
-      workspaceName={access.workspaceName}
-      canApprove={access.owner}
-    />
-  );
+  return <main className="dashboard"><p role="status">Opening workspace…</p></main>;
 }

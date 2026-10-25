@@ -1,9 +1,10 @@
-import TeamAccess from "../../../../components/team-access";
+import { redirect } from "next/navigation";
+import { workspaceHref } from "../../../../lib/workspace-navigation";
 export default async function Page({
   params,
 }: {
   params: Promise<{ workspaceId: string }>;
 }) {
   const { workspaceId } = await params;
-  return <TeamAccess workspaceId={workspaceId} />;
+  redirect(workspaceHref(workspaceId));
 }

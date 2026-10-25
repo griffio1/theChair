@@ -2,9 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
-import WorkspaceConnections from "./workspace-connections";
-import { AppearancePicker } from "../components/appearance-picker";
-import { FlowArt } from "./flow-art";
 import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
 import { MessageReactions, useConversationReactions } from "./chat-reactions";
@@ -99,7 +96,8 @@ function ContractCard({
       <div className="contract-name">
         {contract.id}
         <span className="approved-mark">
-          <Icon name="check" size={12} /> Approved
+          {contract.status === "approved" && <Icon name="check" size={12} />}
+          {contract.status === "proposed" ? "Needs approval" : "Approved"}
         </span>
       </div>
       <div className="field-group">
@@ -140,14 +138,18 @@ export default function TeamDashboard({
   name,
   userId,
   workspaceId,
-  workspaceName,
   canApprove,
+  view,
+  active,
+  onNavigate,
 }: {
   name: string;
   userId: string;
   workspaceId: string;
-  workspaceName: string;
   canApprove: boolean;
+  view: View;
+  active: boolean;
+  onNavigate: (view: "team" | "contracts" | "conflicts") => void;
 }) {
   const [messages, setMessages] = useState<TeamMessageRow[]>([]);
   const [conflicts, setConflicts] = useState<Record<string, Row>>({});
@@ -159,11 +161,10 @@ export default function TeamDashboard({
   const me = name;
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
-  const [view, setView] = useState<View>("chat");
   const [connection, setConnection] = useState("Connecting");
   const [loading, setLoading] = useState(true);
   const [loadingLedger, setLoadingLedger] = useState(true);
-  const reactions = useConversationReactions(workspaceId, "team", userId, view !== "contracts" && messages.length > 0);
+  const reactions = useConversationReactions(workspaceId, "team", userId, active && view !== "contracts" && messages.length > 0);
   const [error, setError] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
   const refreshConversation = useRef<() => void>(() => {});
@@ -320,8 +321,8 @@ export default function TeamDashboard({
   }, [workspaceId]);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [messages.length, view]);
+    if (active && view === "chat") bottom.current?.scrollIntoView({ block: "nearest" });
+  }, [messages.length, view, active]);
 
   async function send() {
     if ((!draft.trim() && !draftImages.length) || busy || uploading) return;
@@ -417,12 +418,13 @@ export default function TeamDashboard({
   const openCount = Object.values(conflicts).filter(
     (c) => c.status === "open",
   ).length;
-  const caught = Object.values(conflicts).filter(
-    (c) => c.severity === "block",
-  ).length;
+  const proposed = contracts.filter(c => c.status === "proposed");
   const visibleMessages =
     view === "conflicts"
-      ? messages.filter((m) => m.kind === "conflict")
+      ? Object.values(conflicts)
+          .sort((a, b) => Number(b.status === "open") - Number(a.status === "open"))
+          .map(c => messages.find(m => m.kind === "conflict" && m.ref_id === c.id)
+            ?? {kind: "conflict", ref_id: c.id, body: c.summary})
       : messages;
 
   function renderMessage(m: Row) {
@@ -431,7 +433,7 @@ export default function TeamDashboard({
       const open = c?.status === "open";
       return (
         <article
-          key={m.id}
+          key={m.id ?? m.ref_id}
           className={`event-card chat-reactable ${open ? "conflict-card" : c ? "resolved-card" : ""}`}
         >
           <div className="event-heading">
@@ -466,7 +468,7 @@ export default function TeamDashboard({
               <span>{c.suggested_fix}</span>
             </p>
           )}
-          <MessageReactions messageId={m.id} reactions={reactions} />
+          {m.id && <MessageReactions messageId={m.id} reactions={reactions} />}
           <div className="event-footer">
             <span>
               {c?.agent ?? "AI tool"}
@@ -566,145 +568,11 @@ export default function TeamDashboard({
   }
 
   return (
-    <div className="workspace">
-      <aside className="sidebar" aria-label="Workspace navigation">
-        <a className="brand" href="/" aria-label="theChair home">
-          <span className="brand-mark">
-            <ChairMark />
-          </span>
-          <span>
-            theChair<span className="brand-dot">.</span>
-          </span>
-        </a>
-        <div className="workspace-label">
-          <span className="project-icon">{workspaceName.slice(0, 1).toUpperCase()}</span>
-          <div>
-            <strong>{workspaceName}</strong>
-            <span>Team</span>
-          </div>
-        </div>
-        <nav>
-          {(
-            [
-              { key: "chat", label: "Team chat", icon: "chat" },
-              { key: "conflicts", label: "Issues", icon: "conflicts" },
-              { key: "contracts", label: "Agreements", icon: "contracts" },
-            ] as const
-          ).map((item) => (
-            <button
-              key={item.key}
-              className={`nav-item ${view === item.key ? "active" : ""}`}
-              onClick={() => setView(item.key)}
-              aria-current={view === item.key ? "page" : undefined}
-              title={item.label}
-              aria-label={item.label}
-            >
-              <Icon name={item.icon} />
-              <span>{item.label}</span>
-              {item.key === "conflicts" && openCount > 0 && (
-                <span className="nav-count">{openCount}</span>
-              )}
-            </button>
-          ))}
-        </nav>
-        <a
-          className="nav-item"
-          href="/workspaces"
-          aria-label="Workspaces"
-          title="Workspaces"
-        >
-          <Icon name="chat" />
-          <span>Workspaces ↗</span>
-        </a>
-        <div className="profile">
-          <span className="avatar profile-avatar">
-            {me.slice(0, 1).toUpperCase() || "?"}
-          </span>
-          <label>
-            <input aria-label="Your name" value={me} readOnly />
-          </label>
-        </div>
-      </aside>
-
-      <div className="workspace-main">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <span className="breadcrumb-root">Workspace</span>
-            <Icon name="chevron" size={12} />
-            <strong>
-              {view === "chat"
-                ? "Team chat"
-                : view === "conflicts"
-                  ? "Issues"
-                  : "Agreements"}
-            </strong>
-          </div>
-          <AppearancePicker />
-          <label className="compact-profile">
-            <span>You</span>
-            <input aria-label="Your name" value={me} readOnly />
-          </label>
-          <span
-            className={`connection ${connection === "Live" ? "is-live" : ""}`}
-            role="status"
-          >
-            <span />
-            {connection}
-          </span>
-        </header>
-        <main className="dashboard">
-          <section className="overview" aria-label="Workspace overview">
-            <div>
-              <h1>{workspaceName}</h1>
-            </div>
-            <FlowArt className="overview-art" />
-          </section>
-          {canApprove && <WorkspaceConnections workspaceId={workspaceId} />}
-          <div className="metrics">
-            <button
-              className={`metric ${view === "contracts" ? "selected" : ""}`}
-              onClick={() => setView("contracts")}
-            >
-              <span className="metric-icon">
-                <Icon name="contracts" />
-              </span>
-              <span>
-                <strong>
-                  {loadingLedger ? "—" : String(approved.length).padStart(2, "0")}
-                </strong>
-                <span>Agreements</span>
-              </span>
-              <Icon name="chevron" size={14} />
-            </button>
-            <button
-              className={`metric ${view === "conflicts" ? "selected" : ""}`}
-              onClick={() => setView("conflicts")}
-            >
-              <span
-                className={`metric-icon ${openCount ? "metric-amber" : ""}`}
-              >
-                <Icon name="conflicts" />
-              </span>
-              <span>
-                <strong>
-                  {loadingLedger ? "—" : String(openCount).padStart(2, "0")}
-                </strong>
-                <span>Open issues</span>
-              </span>
-              <Icon name="chevron" size={14} />
-            </button>
-            <div className="metric">
-              <span className="metric-icon metric-green">
-                <Icon name="check" />
-              </span>
-              <span>
-                <strong>
-                  {loadingLedger ? "—" : String(caught).padStart(2, "0")}
-                </strong>
-                <span>Issues caught</span>
-              </span>
-            </div>
-          </div>
+    <div className="team-content">
+      {view !== "chat" && <section className="wp-page-heading">
+        <h1>{view === "contracts" ? "Agreements" : "Issues"}</h1>
+        <span className="wp-badge">{loadingLedger ? "Loading..." : view === "contracts" ? proposed.length ? proposed.length + " need approval" : approved.length + " approved" : openCount + " open"}</span>
+      </section>}
           {error && (
             <div className="error-banner" role="alert">
               <Icon name="conflicts" size={16} />
@@ -717,10 +585,10 @@ export default function TeamDashboard({
           {reactions.error && <p className="reaction-error" role="alert">{reactions.error}</p>}
           <div
             key={view}
-            className={`content-grid view-enter ${view === "contracts" ? "contracts-view" : ""}`}
+            className="team-panels view-enter"
           >
             <section
-              className="main-panel"
+              className={`main-panel ${view === "chat" ? "team-chat-panel" : "team-ledger-panel"}`}
               aria-label={
                 view === "chat"
                   ? "Team chat"
@@ -729,30 +597,28 @@ export default function TeamDashboard({
                     : "Agreements"
               }
             >
-              <div className="panel-header">
-                <div>
-                  <h2>
-                    {view === "chat"
-                      ? "Team chat"
-                      : view === "conflicts"
-                        ? "Issues"
-                        : "Agreements"}
-                  </h2>
-                </div>
-                {view !== "chat" && <span className="panel-tag">
-                  {view === "conflicts" ? `${openCount} open` : `${approved.length} approved`}
-                </span>}
-              </div>
+              {view === "chat" && <header className="wp-chat-heading">
+                <div><h1>Team chat</h1><p>Team and AI <span aria-hidden="true"> &middot; </span>
+                  <span className={"connection " + (connection === "Live" ? "is-live" : "")} role="status"><span />{connection}</span>
+                </p></div>
+              </header>}
               {view === "contracts" ? (
                 <div className="ledger-grid">
-                  {approved.map((c) => (
-                    <ContractCard key={c.id} contract={c} />
+                  {[...proposed, ...approved].map((c) => (
+                    <div className="team-agreement" key={c.id + "@" + c.version}>
+                      <ContractCard contract={c} />
+                      {c.status === "proposed" && canApprove && <button className="wp-primary" disabled={pending !== null}
+                        onClick={() => void approve("contract", c.id, c.version)} aria-label={"Approve " + c.id + ", version " + c.version}>
+                        {pending === "contract:" + c.id ? "Approving..." : "Approve"}
+                      </button>}
+                    </div>
                   ))}
-                  {!loadingLedger && approved.length === 0 && (
+                  {!loadingLedger && approved.length === 0 && proposed.length === 0 && (
                     <EmptyState
                       icon="contracts"
                       title="No agreements yet"
-                      text="Describe what the code should send and return in Team chat."
+                      text="Describe what you want to build in Team chat."
+                      action={<button className="wp-secondary" onClick={() => onNavigate("team")}>Open team chat</button>}
                     />
                   )}
                   {loadingLedger && (
@@ -766,9 +632,9 @@ export default function TeamDashboard({
                   <div
                     className="conversation"
                     aria-live="polite"
-                    aria-busy={loading}
+                    aria-busy={view === "conflicts" ? loadingLedger : loading}
                   >
-                    {loading && !visibleMessages.length ? (
+                    {(view === "conflicts" ? loadingLedger : loading) && !visibleMessages.length ? (
                       <p className="loading-state" role="status">
                         Loading…
                       </p>
@@ -847,38 +713,7 @@ export default function TeamDashboard({
                 </>
               )}
             </section>
-            {view !== "contracts" && (
-              <aside
-                className="contracts-panel"
-                aria-label="Approved agreements"
-              >
-                <div className="panel-header">
-                  <div>
-                    <h2>
-                      Agreements
-                      <span className="blue-dot" />
-                    </h2>
-                  </div>
-                  <span className="subtle-count">{approved.length}</span>
-                </div>
-                <div className="contracts-list">
-                  {approved.map((c) => (
-                    <ContractCard key={c.id} contract={c} compact />
-                  ))}
-                  {loadingLedger && (
-                    <p className="loading-state">Loading agreements…</p>
-                  )}
-                  {!loadingLedger && approved.length === 0 && (
-                    <p className="empty-contracts">
-                      No agreements yet.
-                    </p>
-                  )}
-                </div>
-              </aside>
-            )}
           </div>
-        </main>
-      </div>
     </div>
   );
 }
@@ -907,10 +742,12 @@ function EmptyState({
   icon,
   title,
   text,
+  action,
 }: {
   icon: IconName;
   title: string;
   text: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="empty-state">
@@ -919,6 +756,7 @@ function EmptyState({
       </span>
       <h3>{title}</h3>
       {text && <p>{text}</p>}
+      {action}
     </div>
   );
 }

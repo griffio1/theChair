@@ -1,0 +1,44 @@
+/* All conversations and team views share the workspace shell. */
+.workspace-hub .wp-chat-layout { display: block; }
+.team-content,.team-panels { min-width: 0; }
+.workspace-hub .wp-chat-panel,.workspace-hub .team-chat-panel {
+  height: max(520px,calc(100dvh - 145px));
+  min-height: 0; max-height: 1100px; border-radius: 24px;
+  background: var(--paper); box-shadow: var(--shadow-soft);
+}
+.workspace-hub .team-ledger-panel { height: auto; min-height: 260px; border-radius: 24px; }
+.team-ledger-panel .conversation { overflow: visible; padding: 24px; }
+.team-ledger-panel .ledger-grid { overflow: visible; grid-template-columns: repeat(auto-fit,minmax(min(300px,100%),1fr)); }
+.team-agreement { min-width: 0; padding: 20px; border: 1px solid var(--line); border-radius: 16px; }
+.team-agreement .contract-card { padding: 0; border: 0; }
+.team-agreement > button { margin-top: 18px; }
+.team-content .wp-page-heading { align-items: center; }
+.team-content .wp-page-heading h1 { margin: 0; }
+.team-content .empty-state { max-width: 440px; }
+.team-content .empty-state p { margin-bottom: 18px; }
+.team-content .connection { font-size: inherit; gap: 6px; }
+.team-chat-panel .conversation { padding: 26px 28px; gap: 24px; }
+.team-content .event-card { max-width: 100%; }
+.team-content .message-content { min-width: 0; }
+.team-content .composer-wrap { padding: 0 22px 14px; }
+.team-content .composer { border-radius: 16px; }
+.team-content .composer-hint { font-size: 9px; }
+.team-content .error-banner { margin-bottom: 16px; }
+.team-content .team-message-bubble { overflow-wrap: anywhere; }
+.workspace-hub .wp-chat-heading h1 { font-size: 25px; margin: 0 0 7px; }
+.workspace-hub .wp-chat-heading { padding: 23px 28px; }
+.workspace-hub .wp-chat-heading p { margin: 0; }
+.workspace-hub .workspace-connections { margin-top: 0; }
+@media (max-width: 760px) {
+  .workspace-hub .wp-chat-panel,.workspace-hub .team-chat-panel { height: 78dvh; min-height: 480px; max-height: 900px; border-radius: 20px; }
+  .workspace-hub .wp-chat-heading { padding: 20px; }
+  .workspace-hub .wp-messages { max-height: none; }
+  .team-chat-panel .conversation { padding: 22px 16px; }
+  .team-content .composer-wrap { padding: 0 12px 12px; }
+  .team-content .composer-hint { font-size: 10px; }
+  .team-ledger-panel .conversation,.team-ledger-panel .ledger-grid { padding: 16px; }
+  .workspace-hub .wp-sidebar-bottom { display: flex; grid-column: 1/-1; padding: 8px 0 0; }
+  .wp-sidebar-bottom .wp-profile,.wp-sidebar-bottom > .wp-text-button { display: none; }
+  .wp-all-workspaces { margin: 0; width: auto; }
+  .workspace-hub .wp-nav { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}

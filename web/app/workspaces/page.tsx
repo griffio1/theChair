@@ -10,6 +10,9 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
 import { AppearancePicker } from "../../components/appearance-picker";
+import TeamDashboard from "../../components/team-dashboard";
+import WorkspaceConnections from "../../components/workspace-connections";
+import { readWorkspaceLocation, workspaceHref, type WorkspaceView as View } from "../../lib/workspace-navigation";
 import { ChatImages, ImagePicker } from "../../components/chat-images";
 import { lastConversation, rememberConversation } from "../../lib/chat-selection";
 import { MessageReactions, useConversationReactions } from "../../components/chat-reactions";
@@ -25,8 +28,8 @@ import type {
   ChatImage,
 } from "../../lib/workspace-types";
 import "./workspaces.css";
+import "../../components/team-workspace.css";
 
-type View = "home" | "chat" | "people" | "contracts" | "conflicts";
 type Draft = { body: string; clientMessageId: string; images?: ChatImage[] };
 type Modal = "workspace" | "chat" | "invite" | "share";
 
@@ -228,14 +231,13 @@ export default function Workspaces() {
   const [activeSpace, setActiveSpace] = useState("");
   const [activeChat, setActiveChat] = useState("");
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null);
-  const [teamWorkspace, setTeamWorkspace] = useState("");
   const [history, setHistory] = useState<{
     scope: string;
     items: WorkspaceMessage[];
   }>({ scope: "", items: [] });
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [uploadScope, setUploadScope] = useState("");
-  const [view, setView] = useState<View>("chat");
+  const [view, setView] = useState<View>("team");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -310,20 +312,51 @@ export default function Workspaces() {
   useEffect(() => {
     setLoadedFor(userId);
     setSpaces([]);
-    setTeamWorkspace("");
     setDetail(null);
     const saved = userId ? lastConversation(userId) : null;
-    setActiveSpace(saved?.workspaceId ?? "");
-    setActiveChat(saved?.chatId ?? "");
+    const destination = readWorkspaceLocation(location.search);
+    setActiveSpace(destination.workspaceId || saved?.workspaceId || "");
+    setActiveChat(destination.chatId || (!destination.workspaceId || destination.workspaceId === saved?.workspaceId ? saved?.chatId : "") || "");
     setHistory({ scope: "", items: [] });
     setDrafts({});
-    setView("chat");
+    setView(destination.view);
     setModal(null);
     setInviteUrl("");
     setField("");
     setFormError("");
     setError("");
   }, [userId]);
+
+  useEffect(() => {
+    function restore() {
+      const destination = readWorkspaceLocation(location.search);
+      const saved = userId ? lastConversation(userId) : null;
+      setActiveSpace(destination.workspaceId || saved?.workspaceId || "");
+      setActiveChat(destination.chatId);
+      setView(destination.view);
+      setError("");
+      setNotice("");
+      setModal(null);
+    }
+    window.addEventListener("popstate", restore);
+    return () => window.removeEventListener("popstate", restore);
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || !current || (view === "chat" && !chat)) return;
+    const href = workspaceHref(activeSpace, view, activeChat);
+    if (location.pathname + location.search !== href) window.history.replaceState(null, "", href + location.hash);
+  }, [userId, current?.workspace.id, activeSpace, activeChat, view, chat?.id]);
+
+  function navigate(next: View, workspaceId = activeSpace, chatId = activeChat) {
+    setActiveSpace(workspaceId);
+    setActiveChat(chatId);
+    setView(next);
+    setError("");
+    setNotice("");
+    const href = workspaceHref(workspaceId, next, chatId);
+    if (location.pathname + location.search !== href) window.history.pushState(null, "", href);
+  }
 
   useEffect(() => {
     if (!userId) return;
@@ -367,7 +400,6 @@ export default function Workspaces() {
         );
         if (ctrl.signal.aborted) return;
         setDetail(result);
-        setTeamWorkspace(activeSpace);
         setActiveChat((id) =>
           result.chats.some((c) => c.id === id)
             ? id
@@ -377,7 +409,6 @@ export default function Workspaces() {
         if (!ctrl.signal.aborted) {
           if (accessUnavailable(e)) {
             setDetail(null);
-            setTeamWorkspace("");
             setActiveChat("");
             setHistory({scope:"",items:[]});
             setDrafts(previous => Object.fromEntries(Object.entries(previous).filter(([key]) => !key.startsWith(`${activeSpace}/`))));
@@ -423,7 +454,7 @@ export default function Workspaces() {
   );
 
   useEffect(() => {
-    if (!activeSpace || !activeChat || !userId) return;
+    if (!activeSpace || !activeChat || !userId || view !== "chat") return;
     const ctrl = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     setLoadingMessages(true);
@@ -463,6 +494,7 @@ export default function Workspaces() {
     scope,
     mergeMessages,
     refresh,
+    view,
   ]);
 
   useEffect(() => {
@@ -485,11 +517,7 @@ export default function Workspaces() {
     setModal(kind);
   }
   function chooseSpace(id: string) {
-    setActiveSpace(id);
-    setActiveChat("");
-    setView("chat");
-    setError("");
-    setNotice("");
+    navigate("team", id, "");
   }
   async function mutate(e: FormEvent) {
     e.preventDefault();
@@ -505,9 +533,7 @@ export default function Workspaces() {
         );
         if (actor !== userRef.current) return;
         setSpaces((items) => [...items, result.workspace]);
-        setActiveSpace(result.workspace.id);
-        setActiveChat(result.chat.id);
-        setView("chat");
+        navigate("team", result.workspace.id, result.chat.id);
         setNotice("Workspace created.");
         setModal(null);
       } else if (modal === "chat") {
@@ -527,8 +553,7 @@ export default function Workspaces() {
               }
             : d,
         );
-        setActiveChat(result.chat.id);
-        setView("chat");
+        navigate("chat", activeSpace, result.chat.id);
         setModal(null);
       } else if (modal === "invite") {
         const result = await api<{ invitation: WorkspaceInvitation }>(
@@ -542,7 +567,7 @@ export default function Workspaces() {
           new URL(result.invitation.inviteUrl, location.origin).href,
         );
         setModal("share");
-        setView("people");
+        navigate("people");
       }
       setRefresh((n) => n + 1);
     } catch (e) {
@@ -644,7 +669,7 @@ export default function Workspaces() {
   return (
     <div className={`workspace-hub wp-live ${!session ? "wp-guest" : ""}`}>
       <aside className="wp-sidebar" aria-label="Workspace navigation">
-        <a className="wp-brand" href="/workspaces">
+        <a className="wp-brand" href="/">
           <span className="wp-brand-mark"><BrandMark size={25} /></span>theChair
           <span className="wp-dot">.</span>
         </a>
@@ -671,18 +696,19 @@ export default function Workspaces() {
             <nav className="wp-nav" aria-label="Views">
               {(
                 [
-                  ["home", "home", "Workspaces"],
-                  ["people", "people", "People"],
+                  ["team", "chat", "Team chat"],
                   ["contracts", "contracts", "Agreements"],
                   ["conflicts", "conflicts", "Issues"],
+                  ["people", "people", "People"],
+                  ["connections", "spark", "Connections"],
                 ] as const
-              ).map(([key, icon, label]) => (
+              ).filter(([key]) => key !== "connections" || current?.workspace.role === "owner").map(([key, icon, label]) => (
                 <button
                   key={key}
                   className={view === key ? "active" : ""}
                   aria-current={view === key ? "page" : undefined}
-                  disabled={busy || (key !== "home" && !activeSpace)}
-                  onClick={() => setView(key)}
+                  disabled={busy || !activeSpace}
+                  onClick={() => navigate(key)}
                 >
                   <span className="wp-glyph" aria-hidden="true">
                     <HubIcon name={icon} />
@@ -690,11 +716,6 @@ export default function Workspaces() {
                   {label}
                 </button>
               ))}
-              {activeSpace === teamWorkspace && teamWorkspace && (
-                <a href={`/workspaces/${activeSpace}/team`}>
-                  <span className="wp-glyph"><HubIcon name="spark" /></span>Team chat<HubIcon name="arrow" size={13} />
-                </a>
-              )}
             </nav>
             <div className="wp-section-label">
               <span>CHATS</span>
@@ -717,9 +738,7 @@ export default function Workspaces() {
                   disabled={busy}
                   aria-current={view === "chat" && activeChat === c.id ? "page" : undefined}
                   onClick={() => {
-                    setActiveChat(c.id);
-                    setView("chat");
-                    setError("");
+                    navigate("chat", activeSpace, c.id);
                   }}
                 >
                   <span className="wp-glyph" aria-hidden="true">
@@ -729,16 +748,10 @@ export default function Workspaces() {
                 </button>
               ))}
             </nav>
-            <button
-              className="wp-new-workspace"
-              disabled={busy}
-              onClick={() => open("workspace")}
-            >
-              <HubIcon name="plus" size={17} />New workspace
-            </button>
           </>
         )}
         <div className="wp-sidebar-bottom">
+          {session && accountReady && <button className={`wp-all-workspaces ${view === "home" ? "active" : ""}`} aria-current={view === "home" ? "page" : undefined} disabled={busy} onClick={() => navigate("home")}><HubIcon name="home" />Workspaces</button>}
           {session && (
             <>
               <div className="wp-profile">
@@ -759,14 +772,6 @@ export default function Workspaces() {
               </button>
             </>
           )}
-          {accountReady && activeSpace === teamWorkspace && teamWorkspace && (
-            <a
-              className="wp-legacy-link"
-              href={`/workspaces/${activeSpace}/team`}
-            >
-              Team chat <HubIcon name="arrow" size={12} />
-            </a>
-          )}
         </div>
       </aside>
       <div className="wp-main">
@@ -777,7 +782,7 @@ export default function Workspaces() {
             <strong>
               {!session ? "Sign in" : view === "home"
                 ? "Workspaces"
-                : view === "chat"
+                : view === "team" ? "Team chat" : view === "connections" ? "Connections" : view === "chat"
                   ? (chat?.title ?? "Chat")
                   : view === "people"
                     ? "People"
@@ -855,6 +860,12 @@ export default function Workspaces() {
                   </button>
                 </div>
               )}
+              {current && <div hidden={!["team", "contracts", "conflicts"].includes(view)}>
+                <TeamDashboard key={userId + ":" + activeSpace} name={String(me)} userId={session.user.id}
+                  workspaceId={activeSpace} canApprove={current.workspace.role === "owner"}
+                  view={view === "contracts" || view === "conflicts" ? view : "chat"}
+                  active={["team", "contracts", "conflicts"].includes(view)} onNavigate={navigate} />
+              </div>}
               <div className="wp-view" key={view}>
               {view === "home" ? (
                 <>
@@ -914,16 +925,6 @@ export default function Workspaces() {
                           </div>
                         </button>
                       ))}
-                      {!query && (
-                        <button
-                          className="wp-space-card wp-create-card"
-                          disabled={busy}
-                          onClick={() => open("workspace")}
-                        >
-                          <span><HubIcon name="plus" size={26} /></span>
-                          <h3>New workspace</h3>
-                        </button>
-                      )}
                     </div>
                   )}
                   {query && !filtered.length && (
@@ -1049,90 +1050,10 @@ export default function Workspaces() {
                     </p>
                   )}
                 </>
-              ) : (view === "contracts" || view === "conflicts") && current ? (
+              ) : ["team", "contracts", "conflicts"].includes(view) ? null : view === "connections" && current ? (
                 <>
-                  <section className="wp-page-heading">
-                    <div>
-                      <h1>
-                        {view === "contracts"
-                          ? "Agreements"
-                          : "Issues"}
-                      </h1>
-                      {activeSpace === teamWorkspace && (
-                        <a
-                          className="wp-secondary"
-                          href={`/workspaces/${activeSpace}/team`}
-                        >
-                          Team chat
-                        </a>
-                      )}
-                    </div>
-                  </section>
-                  <section className="wp-people-panel">
-                    {view === "contracts" ? (
-                      current.contracts.length ? (
-                        current.contracts.map((c) => (
-                          <article
-                            className="wp-person"
-                            key={`${c.id}@${c.version}`}
-                          >
-                            <div>
-                              <strong>
-                                {c.method} {c.path}
-                              </strong>
-                              <small>
-                                {c.name} · Version {c.version} · {c.status === "proposed" ? "Needs approval" : c.status === "superseded" ? "Replaced" : "Approved"}
-                              </small>
-                              <p>{c.response.map((f) => f.name).join(", ")}</p>
-                            </div>
-                          </article>
-                        ))
-                      ) : (
-                        <div className="wp-empty">
-                          <h3>No agreements yet</h3>
-                          {activeSpace === teamWorkspace && (
-                            <a
-                              className="wp-secondary"
-                              href={`/workspaces/${activeSpace}/team`}
-                            >
-                              Team chat <HubIcon name="arrow" size={13} />
-                            </a>
-                          )}
-                        </div>
-                      )
-                    ) : current.conflicts.length ? (
-                      current.conflicts.map((c) => (
-                        <article className="wp-person" key={c.id}>
-                          <div>
-                            <strong>{c.summary}</strong>
-                            <small>
-                              {c.status === "open" ? "Open" : c.status === "approved" ? "Agreement approved" : "Dismissed"} · {c.severity === "block" ? "Must fix" : "Warning"}
-                            </small>
-                            {c.evidence?.[0] && (
-                              <p>
-                                <code>
-                                  {c.evidence[0].file}:{c.evidence[0].line}{" "}
-                                  {c.evidence[0].snippet}
-                                </code>
-                              </p>
-                            )}
-                          </div>
-                        </article>
-                      ))
-                    ) : (
-                      <div className="wp-empty">
-                        <h3>No issues reported</h3>
-                        {activeSpace === teamWorkspace && (
-                          <a
-                            className="wp-secondary"
-                            href={`/workspaces/${activeSpace}/team`}
-                          >
-                            Team chat <HubIcon name="arrow" size={13} />
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </section>
+                  <section className="wp-page-heading"><h1>Connections</h1></section>
+                  {current.workspace.role === "owner" ? <WorkspaceConnections key={activeSpace} workspaceId={activeSpace} /> : <div className="wp-empty">Only owners can manage connections.</div>}
                 </>
               ) : (
                 <div className="wp-chat-layout">
@@ -1140,17 +1061,10 @@ export default function Workspaces() {
                     <header className="wp-chat-heading">
                       <div>
                         <h1>{chat?.title ?? "Chat"}</h1>
-                        <p>
+                        <p>Team only <span aria-hidden="true"> &middot; </span>
                           <span className={`wp-status-dot ${syncState === "Synced" ? "is-synced" : ""}`} />{syncState === "Synced" ? "Up to date" : syncState === "Retrying" ? "Reconnecting…" : "Connecting…"}
                         </p>
                       </div>
-                      <button
-                        className="wp-secondary"
-                        disabled={busy}
-                        onClick={() => open("chat")}
-                      >
-                        <HubIcon name="plus" size={16} />New chat
-                      </button>
                     </header>
                     <div className="wp-messages" aria-busy={loadingMessages}>
                       {(loadingMessages || !activeChat) && !visibleMessages.length ? (
@@ -1238,35 +1152,6 @@ export default function Workspaces() {
                       Enter to send · Shift + Enter for a new line
                     </div>
                   </section>
-                  <aside className="wp-context">
-                    <FlowArt className="wp-context-art" />
-                    <span className="wp-context-icon"><HubIcon name="spark" size={25} /></span>
-                    <h2>Workspace</h2>
-                    <dl>
-                      <div>
-                        <dt>People</dt>
-                        <dd>{current?.members.length ?? "…"}</dd>
-                      </div>
-                      <div>
-                        <dt>Chats</dt>
-                        <dd>{current?.chats.length ?? "…"}</dd>
-                      </div>
-                    </dl>
-                    <button
-                      className="wp-secondary"
-                      disabled={busy}
-                      onClick={() => setView("people")}
-                    >
-                      People<HubIcon name="arrow" size={14} />
-                    </button>
-                    <div className="wp-context-note">
-                      {activeSpace === teamWorkspace && (
-                        <a href={`/workspaces/${activeSpace}/team`}>
-                          Team chat <HubIcon name="arrow" size={13} />
-                        </a>
-                      )}
-                    </div>
-                  </aside>
                 </div>
               )}
               </div>

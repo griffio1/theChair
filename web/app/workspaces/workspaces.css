@@ -1246,6 +1246,8 @@
 .wp-new-workspace { margin: 16px 3px 24px; border-style: solid; background: color-mix(in srgb,var(--wp-surface) 68%,transparent); }
 .wp-profile > span:last-child { min-width: 0; }
 .wp-profile strong,.wp-profile small { overflow: hidden; text-overflow: ellipsis; }
+.wp-all-workspaces { display: flex; align-items: center; gap: 10px; width: 100%; padding: 11px 10px; margin-bottom: 16px; border: 1px solid transparent; border-radius: 12px; background: transparent; text-align: left; font-size: 12px !important; color: var(--wp-subtle) !important; }
+.wp-all-workspaces:hover,.wp-all-workspaces.active { background: var(--accent-soft); color: var(--wp-accent) !important; }
 .wp-avatar { border-color: color-mix(in srgb,var(--wp-accent) 13%,var(--wp-border)); border-radius: 13px; background: var(--accent-soft); font-size: 13px; font-weight: 750; }
 .wp-legacy-link { display: flex; align-items: center; gap: 6px; font-size: 10px; }
 .wp-topbar { min-height: 70px; padding: 12px 22px 22px; border: 0; background: transparent; }
