@@ -434,7 +434,7 @@ export default function TeamDashboard({
       return (
         <article
           key={m.id ?? m.ref_id}
-          className={`event-card chat-reactable ${open ? "conflict-card" : c ? "resolved-card" : ""}`}
+          className={`event-card ${open ? "conflict-card" : c ? "resolved-card" : ""}`}
         >
           <div className="event-heading">
             <span className="event-icon">
@@ -468,7 +468,6 @@ export default function TeamDashboard({
               <span>{c.suggested_fix}</span>
             </p>
           )}
-          {m.id && <MessageReactions messageId={m.id} reactions={reactions} />}
           <div className="event-footer">
             <span>
               {c?.agent ?? "AI tool"}
