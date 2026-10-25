@@ -44,8 +44,8 @@ function withBreaks(lines: string[]): ReactNode[] {
 // No emojis in AI replies. The server strips new ones; this covers messages saved before that.
 const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|[\uFE0F\u200D\u20E3]|[\u{E0020}-\u{E007F}])+[ \t]?/gu;
 
-export function Markdown({ text }: { text: string }) {
-  const lines = text.replace(EMOJI, "").replace(/\r\n/g, "\n").split("\n");
+export function Markdown({ text, preserveEmoji = false }: { text: string; preserveEmoji?: boolean }) {
+  const lines = (preserveEmoji ? text : text.replace(EMOJI, "")).replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
   while (i < lines.length) {

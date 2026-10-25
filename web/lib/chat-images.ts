@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 import { authenticate, readBody, validId, usageLimit, WorkspaceError } from "./workspace-server";
 import { MAX_IMAGE_BYTES, normalizeImage } from "./image-validation";
 
-const BUCKET = "chair-chat-images";
 const unavailable = () => new WorkspaceError(503, "Images aren't available. Try again.");
 function adminClient() {
   const url = process.env.SUPABASE_URL;
@@ -14,21 +13,27 @@ function adminClient() {
     global: { fetch: (input, init) => fetch(input, { ...init, cache: "no-store", signal: AbortSignal.timeout(15000) }) },
   });
 }
-async function member(req: Request, workspaceId: string) {
+async function member(req: Request, workspaceId: string, ownerOnly = false) {
   validId(workspaceId);
   const ctx = await authenticate(req);
-  const found = await ctx.db.from("chair_memberships").select("user_id")
+  const found = await ctx.db.from("chair_memberships").select("user_id,role")
     .eq("workspace_id", workspaceId).eq("user_id", ctx.userId).maybeSingle();
   if (found.error) throw unavailable();
   if (!found.data) throw new WorkspaceError(404, "Workspace unavailable.");
+  if (ownerOnly && found.data.role !== "owner") throw new WorkspaceError(403, "Only owners can upload project images.");
   return ctx;
 }
 export const imageMetadata = (r: Record<string, any>) => ({
   id: r.id, name: r.name, mimeType: r.mime_type, width: r.width, height: r.height, size: r.size,
 });
 
-export async function uploadImage(req: Request, workspaceId: string) {
-  const ctx = await member(req, workspaceId);
+function draftsOnly(query: any, project: boolean) {
+  return project ? query.eq("attached",false) : query.is("message_id",null).is("team_message_id",null);
+}
+export async function uploadImage(req: Request, workspaceId: string, project = false) {
+  const ctx = await member(req, workspaceId, project);
+  const table = project ? "chair_project_images" : "chair_chat_images";
+  const bucket = project ? "chair-project-images" : "chair-chat-images";
   if (!req.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data;"))
     throw new WorkspaceError(415, "Choose an image file to upload.");
   // Bound the actual stream before parsing multipart data; do not trust Content-Length.
@@ -61,9 +66,8 @@ export async function uploadImage(req: Request, workspaceId: string) {
   const admin = adminClient();
 
   // Remove only this uploader's expired, unattached drafts. Attached images never expire here.
-  const expired = await admin.from("chair_chat_images").select("id,object_path")
-    .eq("workspace_id", workspaceId).eq("uploaded_by", ctx.userId)
-    .is("message_id", null).is("team_message_id", null)
+  const expired = await draftsOnly(admin.from(table).select("id,object_path")
+    .eq("workspace_id", workspaceId).eq("uploaded_by", ctx.userId), project)
     .lt("created_at", new Date(Date.now() - 86400000).toISOString()).limit(100);
   if (expired.error) throw unavailable();
   if (expired.data.length) {
@@ -71,14 +75,14 @@ export async function uploadImage(req: Request, workspaceId: string) {
     // same row and requires ready=true, so it cannot race with this cleanup.
     // Keep the row until storage confirms removal: its path lets later uploads
     // retry cleanup after an outage rather than leaving an unreachable object.
-    const retired = await admin.from("chair_chat_images").update({ ready: false })
-      .in("id", expired.data.map(r => r.id)).is("message_id", null).is("team_message_id", null)
+    const retired = await draftsOnly(admin.from(table).update({ ready: false })
+      .in("id", expired.data.map((r: {id: string}) => r.id)), project)
       .select("id,object_path");
     if (!retired.error && retired.data.length) {
-      const removed = await admin.storage.from(BUCKET).remove(retired.data.map(r => r.object_path));
+      const removed = await admin.storage.from(bucket).remove(retired.data.map((r: {object_path: string}) => r.object_path));
       if (!removed.error)
-        await admin.from("chair_chat_images").delete().in("id", retired.data.map(r => r.id))
-          .eq("ready", false).is("message_id", null).is("team_message_id", null);
+        await draftsOnly(admin.from(table).delete().in("id", retired.data.map((r: {id: string}) => r.id))
+          .eq("ready", false), project);
     }
   }
   const id = randomUUID();
@@ -89,11 +93,11 @@ export async function uploadImage(req: Request, workspaceId: string) {
     size: normalized.bytes.length, content_hash: hash,
     object_path: `${workspaceId}/${ctx.userId}/${id}.webp`,
   };
-  const inserted = await admin.from("chair_chat_images").insert(row).select("*").single();
+  const inserted = await admin.from(table).insert(row).select("*").single();
   usageLimit(inserted.error);
   let saved = inserted.data;
   if (inserted.error?.code === "23505") {
-    const previous = await admin.from("chair_chat_images").select("*").eq("workspace_id", workspaceId)
+    const previous = await admin.from(table).select("*").eq("workspace_id", workspaceId)
       .eq("uploaded_by", ctx.userId).eq("client_upload_id", clientId).single();
     if (previous.error) throw unavailable();
     saved = previous.data;
@@ -101,22 +105,22 @@ export async function uploadImage(req: Request, workspaceId: string) {
   } else if (inserted.error) throw unavailable();
   if (!saved) throw unavailable();
   if (!saved.ready) {
-    const uploaded = await admin.storage.from(BUCKET).upload(saved.object_path, normalized.bytes, { contentType: "image/webp", upsert: false });
+    const uploaded = await admin.storage.from(bucket).upload(saved.object_path, normalized.bytes, { contentType: "image/webp", upsert: false });
     if (uploaded.error && String((uploaded.error as { statusCode?: string }).statusCode) !== "409") throw unavailable();
-    const ready = await admin.from("chair_chat_images").update({ ready: true }).eq("id", saved.id);
+    const ready = await admin.from(table).update({ ready: true }).eq("id", saved.id);
     if (ready.error) throw unavailable();
   }
   return { image: imageMetadata(saved) };
 }
 
-export async function readImage(req: Request, workspaceId: string, imageId: string) {
+export async function readImage(req: Request, workspaceId: string, imageId: string, project = false) {
   const ctx = await member(req, workspaceId);
   // The caller's JWT enforces pending-uploader and attached-member access via RLS.
-  const image = await ctx.db.from("chair_chat_images").select("*")
+  const image = await ctx.db.from(project ? "chair_project_images" : "chair_chat_images").select("*")
     .eq("workspace_id", workspaceId).eq("id", validId(imageId)).maybeSingle();
   if (image.error) throw unavailable();
   if (!image.data) throw new WorkspaceError(404, "Image unavailable.");
-  const result = await adminClient().storage.from(BUCKET).download(image.data.object_path);
+  const result = await adminClient().storage.from(project ? "chair-project-images" : "chair-chat-images").download(image.data.object_path);
   if (result.error) {
     const status = Number((result.error as { status?: number; statusCode?: string }).statusCode ??
       (result.error as { status?: number }).status);

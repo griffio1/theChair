@@ -1,0 +1,25 @@
+.project-info { max-width: 1000px; }
+.project-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.project-heading h1 { overflow-wrap: anywhere; }
+.project-eyebrow { display: block; margin-bottom: 12px; font-size: 12px; color: var(--muted); }
+.project-card { padding: 28px; margin-top: 24px; border: 1px solid var(--line); border-radius: 22px; background: var(--paper); box-shadow: var(--shadow-soft); }
+.project-description { line-height: 1.8; overflow-wrap: anywhere; }
+.project-description .md > * + * { margin-top: 16px; }
+.project-description .md-heading { font-size: 20px; }
+.project-empty,.project-help { color: var(--muted); font-size: 12px; }
+.project-description-label { display: flex; align-items: center; justify-content: space-between; font-size: 12px; font-weight: 600; margin-top: 24px; }
+.project-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 0; }
+.project-toolbar button { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 7px 10px; border-radius: 8px; font-size: 12px; }
+.project-toolbar button:hover { background: var(--accent-soft); }
+.project-form textarea { width: 100%; min-height: 230px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--wash); color: var(--ink); resize: vertical; line-height: 1.7; font: inherit; }
+.project-preview { min-height: 230px; padding: 20px; margin: 12px 0; border: 1px solid var(--line); border-radius: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.project-hackathon { margin: 24px 0; padding: 20px; border: 1px solid var(--line); border-radius: 14px; }
+.project-hackathon legend { padding: 0 8px; font-size: 13px; font-weight: 600; }
+.project-toggle { display: flex; gap: 10px; align-items: center; font-size: 13px; }
+.project-toggle input { accent-color: var(--blue); width: 17px; height: 17px; }
+.project-form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.project-error { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--warning-soft); margin-bottom: 20px; font-size: 13px; }
+.project-error button { display: block; margin-top: 12px; }
+.wp-breadcrumb a { color: var(--muted); text-decoration: none; min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wp-breadcrumb a:hover { color: var(--blue); }
+@media(max-width:760px) { .project-card { padding: 20px 16px; } .project-heading { align-items: flex-start; flex-direction: column; } }

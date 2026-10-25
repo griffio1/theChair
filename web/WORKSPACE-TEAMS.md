@@ -1,9 +1,20 @@
 # Workspace team dashboards
 
-Team chat, Agreements, Issues, People and Connections share the `/workspaces`
-layout. Old `/workspaces/:workspaceId/team` links redirect into that layout.
+Project info, Team chat, Agreements, Issues, People and Connections share one
+workspace layout. `/workspaces` lists your workspaces; readable links such as
+`/workspaces/collegelarper/teamchat` reopen the selected view. Clicking the
+project name in the breadcrumb opens Project info. Existing UUID and query links
+still work and become readable links after membership is verified.
 `/team` remains an alias for the original Test67 workspace. Light, Dark and Pride
 use the shared appearance preference.
+
+Owners can edit the project name, a Markdown description, up to four private
+images, and a hackathon deadline in **Project info**. The name can change without
+breaking its URL. Duplicate project names receive a unique suffix. The editor
+includes formatting buttons and a preview; uploads support paste and drop. All
+members can view saved information. Concurrent edits return a conflict instead
+of overwriting another owner's save. Deadlines are stored in UTC and displayed
+in each user's local time; the countdown is recalculated after a tab resumes.
 
 **Account**, beside the profile at the bottom left, edits display name, optional
 nickname, email and password using Supabase Auth. A nickname takes precedence in
@@ -62,7 +73,8 @@ Reference: [GitHub token permissions](https://docs.github.com/en/rest/authentica
 The shared Supabase project has these migrations applied: `workspaces.sql`,
 `secure-team.sql`, `workspace-teams.sql`, `workspace-roles.sql`, `chat-images.sql`,
 `chat-reactions.sql`, then the production set `production-limits.sql`,
-`webhook-jobs.sql` and `approval-publishing.sql`, followed by `account-profiles.sql`.
+`webhook-jobs.sql` and `approval-publishing.sql`, followed by `account-profiles.sql`
+and `project-info.sql`.
 Carter confirmed the profile migration succeeded. It synchronizes names without
 changing roles or chat history. Do not rerun older migrations.
 For a separate database, first install `supabase/schema.sql` and `workspaces.sql`,
@@ -88,6 +100,10 @@ credentials now come from the workspace connection table. `GITHUB_REPO` is only
 used to recognize theChair's own source tree for its demo-file exclusions.
 
 ## Verification
+
+`node --env-file=web/.env.local --import tsx web/scripts/check-project-info.ts`
+checks the real project APIs with disposable accounts and a private image, then
+removes only its test records and storage objects. No existing projects are edited.
 
 Root and web suites cover extraction, PostgreSQL isolation,
 concurrent server contexts, AI context/proposal isolation and credential controls.

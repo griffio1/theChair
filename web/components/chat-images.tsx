@@ -10,7 +10,7 @@ async function auth() {
   if (!data.session) throw new Error("Sign in to add or view images.");
   return { authorization: `Bearer ${data.session.access_token}` };
 }
-function PrivateImage({ workspaceId, image }: { workspaceId: string; image: ChatImage }) {
+function PrivateImage({ workspaceId, image, project = false }: { workspaceId: string; image: ChatImage; project?: boolean }) {
   const [url, setUrl] = useState("");
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -24,7 +24,7 @@ function PrivateImage({ workspaceId, image }: { workspaceId: string; image: Chat
       if (started) return;
       started = true;
       try {
-        const response = await fetch(`/api/workspaces/${workspaceId}/images/${image.id}`, {
+        const response = await fetch(`/api/workspaces/${workspaceId}/${project ? "project/" : ""}images/${image.id}`, {
           headers: await auth(), cache: "no-store", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
         });
         if (!response.ok) throw new Error("Couldn't load this image.");
@@ -38,7 +38,7 @@ function PrivateImage({ workspaceId, image }: { workspaceId: string; image: Chat
     }, { rootMargin: "200px" });
     if (container.current) observer.observe(container.current);
     return () => { active = false; controller.abort(); observer.disconnect(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [workspaceId, image.id, attempt]);
+  }, [workspaceId, image.id, attempt, project]);
   return <div className="chat-image" ref={container}>
     {url ? <button type="button" className="chat-image-open" onClick={() => dialog.current?.showModal()} aria-label={`Open ${image.name}`}>
       <img src={url} alt={image.name} width={image.width} height={image.height} loading="lazy" />
@@ -51,14 +51,14 @@ function PrivateImage({ workspaceId, image }: { workspaceId: string; image: Chat
     </dialog>
   </div>;
 }
-export function ChatImages({ workspaceId, images }: { workspaceId: string; images?: ChatImage[] }) {
+export function ChatImages({ workspaceId, images, project = false }: { workspaceId: string; images?: ChatImage[]; project?: boolean }) {
   if (!images?.length) return null;
-  return <div className="chat-images">{images.map(image => <PrivateImage key={image.id} workspaceId={workspaceId} image={image} />)}</div>;
+  return <div className="chat-images">{images.map(image => <PrivateImage key={image.id} workspaceId={workspaceId} image={image} project={project} />)}</div>;
 }
 
-export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }: {
+export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy, project = false }: {
   workspaceId: string; images: ChatImage[]; onChange: (images: ChatImage[]) => void;
-  disabled: boolean; onBusy: (busy: boolean) => void;
+  disabled: boolean; onBusy: (busy: boolean) => void; project?: boolean;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const picker = useRef<HTMLElement>(null);
@@ -128,7 +128,7 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
     if (!files.length) return;
     if (inFlight.current || disabled) { setError("Wait for your upload or message to finish."); return; }
     setError("");
-    if (files.length + images.length > 4) { setError("Add up to 4 images per message."); return; }
+    if (files.length + images.length > 4) { setError(project ? "Add up to 4 project images." : "Add up to 4 images per message."); return; }
     if (files.some(f => !["image/png","image/jpeg","image/webp"].includes(f.type) || !f.size || f.size > 3 * 1024 * 1024)) {
       setError("Use PNG, JPG or WebP, up to 3 MB each."); return;
     }
@@ -141,7 +141,7 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
     try {
       for (const file of files) {
         const data = new FormData(); data.set("file",file); data.set("clientUploadId",crypto.randomUUID());
-        const response = await fetch(`/api/workspaces/${workspaceId}/images`, {
+        const response = await fetch(`/api/workspaces/${workspaceId}/${project ? "project/" : ""}images`, {
           method:"POST", headers:await auth(), body:data, signal:AbortSignal.any([abort.signal,AbortSignal.timeout(45000)]),
         });
         const result = await response.json();
@@ -168,7 +168,7 @@ export function ImagePicker({ workspaceId, images, onChange, disabled, onBusy }:
       <small>Drop or paste · Up to 4 images, 3 MB each</small>
     </div>
     {!!images.length && <div className="chat-image-drafts">{images.map(image => <div key={image.id}>
-      <PrivateImage workspaceId={workspaceId} image={image} />
+      <PrivateImage workspaceId={workspaceId} image={image} project={project} />
       <button type="button" disabled={disabled || uploading} onClick={() => onChange(images.filter(i => i.id !== image.id))} aria-label={`Remove ${image.name}`}>Remove</button>
     </div>)}</div>}
     {!!previews.length && <div className="chat-image-drafts" aria-label="Uploading images">{previews.map((p,i) => <div key={i}>

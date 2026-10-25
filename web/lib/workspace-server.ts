@@ -162,6 +162,7 @@ const workspace = (r: Row, role: Workspace["role"]): Workspace => ({
   name: r.name,
   role,
   createdAt: r.created_at,
+  ...(r.slug ? {slug: r.slug} : {}),
 });
 const chat = (r: Row): WorkspaceChat => ({
   id: r.id,
@@ -210,7 +211,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       const [spaces, roles] = await Promise.all([
         db
           .from("chair_workspaces")
-          .select("id,name,created_at")
+          .select("id,name,slug,created_at")
           .order("created_at"),
         db
           .from("chair_memberships")

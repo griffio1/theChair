@@ -13,6 +13,7 @@ import { AppearancePicker } from "../../components/appearance-picker";
 import TeamDashboard from "../../components/team-dashboard";
 import WorkspaceConnections from "../../components/workspace-connections";
 import AccountSettings from "../../components/account-settings";
+import ProjectInfo from "../../components/project-info";
 import { accountName } from "../../lib/account-settings";
 import { readWorkspaceLocation, workspaceHref, type WorkspaceView as View } from "../../lib/workspace-navigation";
 import { ChatImages, ImagePicker } from "../../components/chat-images";
@@ -311,8 +312,8 @@ export default function Workspaces() {
     setSpaces([]);
     setDetail(null);
     const saved = userId ? lastConversation(userId) : null;
-    const destination = readWorkspaceLocation(location.search);
-    setActiveSpace(destination.workspaceId || saved?.workspaceId || "");
+    const destination = readWorkspaceLocation(location.search, location.pathname);
+    setActiveSpace(destination.workspaceId || (destination.workspaceSlug ? "" : saved?.workspaceId) || "");
     setActiveChat(destination.chatId || (!destination.workspaceId || destination.workspaceId === saved?.workspaceId ? saved?.chatId : "") || "");
     setHistory({ scope: "", items: [] });
     setDrafts({});
@@ -326,24 +327,24 @@ export default function Workspaces() {
 
   useEffect(() => {
     function restore() {
-      const destination = readWorkspaceLocation(location.search);
+      const destination = readWorkspaceLocation(location.search, location.pathname);
       const saved = userId ? lastConversation(userId) : null;
-      setActiveSpace(destination.workspaceId || saved?.workspaceId || "");
+      setActiveSpace(destination.workspaceId || (destination.workspaceSlug ? spaces.find(s => s.slug === destination.workspaceSlug)?.id : saved?.workspaceId) || "");
       setActiveChat(destination.chatId);
       setView(destination.view);
-      setError("");
+      setError(destination.workspaceSlug && !spaces.some(s => s.slug === destination.workspaceSlug) ? "Project unavailable." : "");
       setNotice("");
       setModal(null);
     }
     window.addEventListener("popstate", restore);
     return () => window.removeEventListener("popstate", restore);
-  }, [userId]);
+  }, [userId, spaces]);
 
   useEffect(() => {
     if (!userId || !current || (view === "chat" && !chat)) return;
-    const href = workspaceHref(activeSpace, view, activeChat);
+    const href = workspaceHref(activeSpace, view, activeChat, space?.slug);
     if (location.pathname + location.search !== href) window.history.replaceState(null, "", href + location.hash);
-  }, [userId, current?.workspace.id, activeSpace, activeChat, view, chat?.id]);
+  }, [userId, current?.workspace.id, activeSpace, activeChat, view, chat?.id, space?.slug]);
 
   function navigate(next: View, workspaceId = activeSpace, chatId = activeChat) {
     setActiveSpace(workspaceId);
@@ -351,7 +352,7 @@ export default function Workspaces() {
     setView(next);
     setError("");
     setNotice("");
-    const href = workspaceHref(workspaceId, next, chatId);
+    const href = workspaceHref(workspaceId, next, chatId, spaces.find(s => s.id === workspaceId)?.slug);
     if (location.pathname + location.search !== href) window.history.pushState(null, "", href);
   }
 
@@ -367,6 +368,13 @@ export default function Workspaces() {
       .then((result) => {
         if (ctrl.signal.aborted) return;
         setSpaces(result.workspaces);
+        const destination = readWorkspaceLocation(location.search, location.pathname);
+        if (destination.workspaceSlug) {
+          const selected = result.workspaces.find(s => s.slug === destination.workspaceSlug);
+          setActiveSpace(selected?.id ?? "");
+          setError(selected ? "" : "Project unavailable.");
+          return;
+        }
         if (!result.workspaces.length) setView(previous => previous === "account" ? previous : "home");
         setActiveSpace((id) =>
           result.workspaces.some((s) => s.id === id)
@@ -514,7 +522,7 @@ export default function Workspaces() {
     setModal(kind);
   }
   function chooseSpace(id: string) {
-    navigate("team", id, "");
+    navigate("project", id, "");
   }
   async function mutate(e: FormEvent) {
     e.preventDefault();
@@ -530,7 +538,7 @@ export default function Workspaces() {
         );
         if (actor !== userRef.current) return;
         setSpaces((items) => [...items, result.workspace]);
-        navigate("team", result.workspace.id, result.chat.id);
+        navigate("project", result.workspace.id, result.chat.id);
         setNotice("Workspace created.");
         setModal(null);
       } else if (modal === "chat") {
@@ -693,6 +701,7 @@ export default function Workspaces() {
             <nav className="wp-nav" aria-label="Views">
               {(
                 [
+                  ["project", "home", "Project info"],
                   ["team", "chat", "Team chat"],
                   ["contracts", "contracts", "Agreements"],
                   ["conflicts", "conflicts", "Issues"],
@@ -778,12 +787,12 @@ export default function Workspaces() {
       <div className="wp-main">
         <header className="wp-topbar">
           <div className="wp-breadcrumb">
-            <span>{space?.name ?? "theChair"}</span>
-            <span className="wp-breadcrumb-divider" aria-hidden="true">/</span>
+            {session && view !== "home" && <><a href="/workspaces" onClick={event => {if (!event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0) {event.preventDefault();navigate("home");}}}>Workspaces</a><span className="wp-breadcrumb-divider" aria-hidden="true">/</span></>}
+            {space && view !== "home" && view !== "account" && <><a href={workspaceHref(activeSpace,"project","",space.slug)} onClick={event => {if (!event.ctrlKey && !event.metaKey && !event.shiftKey && event.button === 0) {event.preventDefault();navigate("project");}}}>{space.name}</a><span className="wp-breadcrumb-divider" aria-hidden="true">/</span></>}
             <strong>
               {!session ? "Sign in" : view === "home"
                 ? "Workspaces"
-                : view === "account" ? "Account" : view === "team" ? "Team chat" : view === "connections" ? "Connections" : view === "chat"
+                : view === "project" ? "Project info" : view === "account" ? "Account" : view === "team" ? "Team chat" : view === "connections" ? "Connections" : view === "chat"
                   ? (chat?.title ?? "Chat")
                   : view === "people"
                     ? "People"
@@ -868,7 +877,11 @@ export default function Workspaces() {
                   active={["team", "contracts", "conflicts"].includes(view)} onNavigate={navigate} />
               </div>}
               <div className="wp-view" key={view}>
-              {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "home" ? (
+              {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "project" && current ? <ProjectInfo key={`${session.user.id}/${activeSpace}`} workspace={current.workspace} userId={session.user.id} onSaved={project => {
+                setSpaces(previous => previous.map(s => s.id === project.workspaceId ? {...s,name:project.name,slug:project.slug} : s));
+                setDetail(previous => previous?.workspace.id === project.workspaceId ? {...previous,workspace:{...previous.workspace,name:project.name}} : previous);
+                setRefresh(value => value + 1);
+              }} /> : view === "home" ? (
                 <>
                   <section className="wp-page-heading wp-home-hero">
                     <div className="wp-home-copy">

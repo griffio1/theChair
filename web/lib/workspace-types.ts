@@ -5,6 +5,18 @@ export interface Workspace {
   name: string;
   role: "owner" | "member";
   createdAt: string;
+  slug?: string;
+}
+export interface ProjectInfo {
+  workspaceId: string;
+  name: string;
+  slug: string;
+  description: string;
+  hackathonMode: boolean;
+  deadline: string | null;
+  revision: number;
+  updatedAt: string;
+  images: ChatImage[];
 }
 export interface WorkspaceChat {
   id: string;
