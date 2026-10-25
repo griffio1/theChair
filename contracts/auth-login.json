@@ -1,8 +1,11 @@
 {
   "id": "auth-login",
   "name": "Login",
-  "method": "POST",
   "path": "/api/auth/login",
+  "notes": "camelCase for all JSON fields.",
+  "owner": "parag",
+  "method": "POST",
+  "status": "approved",
   "request": [
     {
       "name": "email",
@@ -15,6 +18,7 @@
       "required": true
     }
   ],
+  "version": 1,
   "response": [
     {
       "name": "userId",
@@ -26,9 +30,5 @@
       "type": "string",
       "required": true
     }
-  ],
-  "version": 1,
-  "status": "approved",
-  "owner": "parag",
-  "notes": "camelCase for all JSON fields."
+  ]
 }
