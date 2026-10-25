@@ -4,6 +4,7 @@ import {useEffect, useRef, useState, type FormEvent} from "react";
 import {supabase} from "../lib/supabase";
 import type {ProjectInfo as Project, Workspace} from "../lib/workspace-types";
 import {formatProjectText, type TextFormat} from "../lib/project-editor";
+import {LoadingSkeleton} from './loading-skeleton';
 import {Markdown} from "./markdown";
 import {ChatImages, ImagePicker} from "./chat-images";
 import {HackathonCountdown} from "./hackathon-countdown";
@@ -78,7 +79,7 @@ export default function ProjectInfo({workspace,userId,onSaved}:{workspace:Worksp
     {error && <div className="project-error" role="alert">{error}
       {(!project || conflict) && <button className="wp-secondary" disabled={busy} onClick={()=>setReload(n=>n+1)}>{conflict?"Discard edits and reload":"Try again"}</button>}
     </div>}
-    {!project && !error && <p role="status">Loading project…</p>}
+    {!project && !error && <LoadingSkeleton label="Loading project" cards={2} />}
     {project && !editing && <>
       {project.hackathonMode && project.deadline && <HackathonCountdown deadline={project.deadline} />}
       <section className="project-card project-description" aria-label="Project description">

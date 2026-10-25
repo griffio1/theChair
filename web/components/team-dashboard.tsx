@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
+import {LoadingSkeleton} from './loading-skeleton';
 import { MessageReactions, useConversationReactions } from "./chat-reactions";
 import { Markdown } from "./markdown";
 import {MessageInput} from "./message-input";
@@ -193,14 +194,15 @@ export default function TeamDashboard({
   }
 
   useEffect(() => {
-    let active = true;
+    if (!active) return;
+    let live = true;
     let messagesInFlight = false;
     let ledgerInFlight = false;
     const ctrl = new AbortController();
     setLoading(true);
     setLoadingLedger(true);
     async function loadMessages() {
-      if (messagesInFlight || !active) return;
+      if (messagesInFlight || !live) return;
       messagesInFlight = true;
       try {
         const { data: m, error: messageError } = await supabase
@@ -210,19 +212,19 @@ export default function TeamDashboard({
           .order("created_at", { ascending: false })
           .limit(200).abortSignal(AbortSignal.any([ctrl.signal, AbortSignal.timeout(15000)]));
         if (messageError) throw messageError;
-        if (active) {
+        if (live) {
           setMessages(previous => mergeTeamMessages(previous, m ?? []));
           setError(previous => previous === "Chat couldn’t load. Retrying…" ? "" : previous);
         }
       } catch {
-        if (active) setError("Chat couldn’t load. Retrying…");
+        if (live) setError("Chat couldn’t load. Retrying…");
       } finally {
         messagesInFlight = false;
-        if (active) setLoading(false);
+        if (live) setLoading(false);
       }
     }
     async function loadLedger() {
-      if (ledgerInFlight || !active) return;
+      if (ledgerInFlight || !live) return;
       ledgerInFlight = true;
       const revision = ledgerRevision.current;
       try {
@@ -232,15 +234,15 @@ export default function TeamDashboard({
           loadContracts(signal),
         ]);
         if (result.error) throw result.error;
-        if (active && revision === ledgerRevision.current) {
+        if (live && revision === ledgerRevision.current) {
           setConflicts(Object.fromEntries((result.data ?? []).map(row => [row.id,row])));
           setContracts(nextContracts);
           setError(previous => previous === "Details couldn’t load. Chat still works." ? "" : previous);
         }
-      } catch { if (active) setError("Details couldn’t load. Chat still works."); }
+      } catch { if (live) setError("Details couldn’t load. Chat still works."); }
       finally {
         ledgerInFlight = false;
-        if (active) {
+        if (live) {
           // Events and approvals may have changed the ledger while this snapshot was in flight.
           if (revision !== ledgerRevision.current) void loadLedger();
           else setLoadingLedger(false);
@@ -261,7 +263,7 @@ export default function TeamDashboard({
           table: "messages",
           filter: `workspace_id=eq.${workspaceId}`,
         },
-        (p) => { if (active) setMessages(prev => mergeTeamMessages(prev, [p.new as TeamMessageRow])); },
+        (p) => { if (live) setMessages(prev => mergeTeamMessages(prev, [p.new as TeamMessageRow])); },
       )
       .on(
         "postgres_changes",
@@ -272,7 +274,7 @@ export default function TeamDashboard({
           filter: `workspace_id=eq.${workspaceId}`,
         },
         (p) => {
-          if (!active) return;
+          if (!live) return;
           ledgerRevision.current++;
           setConflicts((prev) => {
             const next = { ...prev };
@@ -290,10 +292,10 @@ export default function TeamDashboard({
           table: "contracts",
           filter: `workspace_id=eq.${workspaceId}`,
         },
-        () => { if (active) { ledgerRevision.current++; void loadLedger(); } },
+        () => { if (live) { ledgerRevision.current++; void loadLedger(); } },
       )
       .subscribe((status) => {
-        if (!active) return;
+        if (!live) return;
         setConnection(
           status === "SUBSCRIBED"
             ? "Live"
@@ -311,7 +313,7 @@ export default function TeamDashboard({
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", refresh);
     return () => {
-      active = false;
+      live = false;
       ctrl.abort();
       clearInterval(poll);
       document.removeEventListener("visibilitychange", onVisible);
@@ -319,7 +321,7 @@ export default function TeamDashboard({
       refreshConversation.current = () => {};
       void supabase.removeChannel(ch);
     };
-  }, [workspaceId]);
+  }, [workspaceId, active]);
 
   useEffect(() => {
     if (active && view === "chat") bottom.current?.scrollIntoView({ block: "nearest" });
@@ -622,9 +624,7 @@ export default function TeamDashboard({
                     />
                   )}
                   {loadingLedger && (
-                    <p className="loading-state" role="status">
-                      Loading agreements…
-                    </p>
+                    <LoadingSkeleton label="Loading agreements" />
                   )}
                 </div>
               ) : (
@@ -635,9 +635,7 @@ export default function TeamDashboard({
                     aria-busy={view === "conflicts" ? loadingLedger : loading}
                   >
                     {(view === "conflicts" ? loadingLedger : loading) && !visibleMessages.length ? (
-                      <p className="loading-state" role="status">
-                        Loading…
-                      </p>
+                      <LoadingSkeleton label="Loading messages" cards={2} />
                     ) : visibleMessages.length === 0 ? (
                       <EmptyState
                         icon={view === "chat" ? "chat" : "check"}

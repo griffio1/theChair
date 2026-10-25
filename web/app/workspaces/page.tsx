@@ -16,6 +16,7 @@ import NotificationInbox from '../../components/notification-inbox';
 import {normalizeUsername,usernameError,type AccountProfile} from '../../lib/usernames';
 import {identityRequest} from '../../lib/identity-client';
 import AccountSettings from "../../components/account-settings";
+import {LoadingSkeleton} from '../../components/loading-skeleton';
 import ProjectInfo from "../../components/project-info";
 import {MessageInput} from "../../components/message-input";
 import { accountName } from "../../lib/account-settings";
@@ -861,9 +862,7 @@ export default function Workspaces() {
             {notice}
           </div>
           {session === undefined || (session && !accountReady) ? (
-            <div className="wp-empty" role="status">
-              Loading your account…
-            </div>
+            <LoadingSkeleton label="Loading your account" cards={2} />
           ) : !session ? (
             <AccountForm invited={!!inviteToken} />
           ) : (
@@ -906,11 +905,11 @@ export default function Workspaces() {
               {ownProfile&&!ownProfile.username&&view!=="account"&&<div className="wp-notice"><button className="wp-text-button" onClick={()=>navigate("account")}>Choose your @username</button></div>}
               {inviteUrl&&view==="people"&&<button className="wp-text-button" onClick={()=>setModal("share")}>Copy invite link</button>}
               <div className="wp-view" key={view}>
-              {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "project" && current ? <ProjectInfo key={`${session.user.id}/${activeSpace}`} workspace={current.workspace} userId={session.user.id} onSaved={project => {
+              {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "project" && space ? <ProjectInfo key={`${session.user.id}/${activeSpace}`} workspace={space} userId={session.user.id} onSaved={project => {
                 setSpaces(previous => previous.map(s => s.id === project.workspaceId ? {...s,name:project.name,slug:project.slug} : s));
                 setDetail(previous => previous?.workspace.id === project.workspaceId ? {...previous,workspace:{...previous.workspace,name:project.name}} : previous);
                 setRefresh(value => value + 1);
-              }} /> : view === "home" ? (
+              }} /> : view !== "home" && !current && !error ? <LoadingSkeleton label="Loading workspace" cards={2} /> : view === "home" ? (
                 <>
                   <section className="wp-page-heading wp-home-hero">
                     <div className="wp-home-copy">
@@ -938,9 +937,7 @@ export default function Workspaces() {
                     </label>
                   </div>
                   {loading && !spaces.length ? (
-                    <div className="wp-empty" role="status">
-                      Loading workspaces…
-                    </div>
+                    <LoadingSkeleton label="Loading workspaces" cards={3} />
                   ) : (
                     <div className="wp-space-grid">
                       {filtered.map((s, i) => (
