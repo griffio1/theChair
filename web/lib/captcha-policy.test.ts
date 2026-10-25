@@ -1,26 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { captchaProof, captchaSubmissionError, CAPTCHA_LIFETIME_MS, CAPTCHA_REQUIRED, CAPTCHA_UNAVAILABLE } from "./captcha-policy";
+import { captchaProof, captchaSubmissionError, CAPTCHA_LIFETIME_MS, CAPTCHA_REQUIRED } from "./captcha-policy";
 
-test("production signup fails closed without a configured site key, even with a token", () => {
-  assert.equal(captchaSubmissionError("signup","",true,null),CAPTCHA_UNAVAILABLE);
-  assert.equal(captchaSubmissionError("signup","  ",true,captchaProof("example")),CAPTCHA_UNAVAILABLE);
-});
-
-test("missing configuration leaves existing sign-in and local development usable", () => {
-  assert.equal(captchaSubmissionError("signin","",true,null),"");
-  assert.equal(captchaSubmissionError("recovery","",true,null),"");
-  assert.equal(captchaSubmissionError("signup","",false,null),"");
+test("without a site key every auth flow works, including signup", () => {
+  for (const action of ["signup","signin","recovery"] as const) {
+    assert.equal(captchaSubmissionError(action,"",null),"");
+    assert.equal(captchaSubmissionError(action,"  ",null),"");
+  }
 });
 
 test("every configured auth flow requires a fresh token, including in development", () => {
   const issuedAt = 1_000;
   const proof = captchaProof("example",issuedAt);
   for (const action of ["signup","signin","recovery"] as const) {
-    assert.equal(captchaSubmissionError(action,"site-key",true,null,issuedAt),CAPTCHA_REQUIRED);
-    assert.equal(captchaSubmissionError(action,"site-key",false,null,issuedAt),CAPTCHA_REQUIRED);
-    assert.equal(captchaSubmissionError(action,"site-key",true,proof,issuedAt),"");
-    assert.equal(captchaSubmissionError(action,"site-key",true,proof,issuedAt + CAPTCHA_LIFETIME_MS),CAPTCHA_REQUIRED);
+    assert.equal(captchaSubmissionError(action,"site-key",null,issuedAt),CAPTCHA_REQUIRED);
+    assert.equal(captchaSubmissionError(action,"site-key",proof,issuedAt),"");
+    assert.equal(captchaSubmissionError(action,"site-key",proof,issuedAt + CAPTCHA_LIFETIME_MS),CAPTCHA_REQUIRED);
   }
 });
 

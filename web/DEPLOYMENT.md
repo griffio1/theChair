@@ -54,7 +54,7 @@ See [the rollout and Parag handoff](WORKSPACE-TEAMS.md).
 
 ## Public signup and recovery
 
-Production signup refuses to run without CAPTCHA configuration.
+CAPTCHA is optional. Without `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, signup, sign-in and recovery work with no verification step. To turn it on:
 
 1. Create a Cloudflare Turnstile widget in **Managed** mode for the deployment
    hostname. Put its site key in `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and redeploy.

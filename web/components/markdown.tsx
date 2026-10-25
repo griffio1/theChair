@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { CodeBlock } from "./code-block";
 import "./markdown.css";
 
 // Small markdown renderer for AI chat replies. It builds React elements, never HTML strings,
@@ -40,8 +41,11 @@ function withBreaks(lines: string[]): ReactNode[] {
   ));
 }
 
+// No emojis in AI replies. The server strips new ones; this covers messages saved before that.
+const EMOJI = /(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|[\uFE0F\u200D\u20E3]|[\u{E0020}-\u{E007F}])+[ \t]?/gu;
+
 export function Markdown({ text }: { text: string }) {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const lines = text.replace(EMOJI, "").replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
   while (i < lines.length) {
@@ -50,11 +54,12 @@ export function Markdown({ text }: { text: string }) {
     if (!line.trim()) {
       i++;
     } else if (line.trimStart().startsWith("```")) {
+      const lang = line.trimStart().slice(3).trim().split(/\s/)[0] ?? "";
       const code: string[] = [];
       i++;
       while (i < lines.length && !lines[i].trimStart().startsWith("```")) code.push(lines[i++]);
       i++;
-      blocks.push(<pre key={key}><code>{code.join("\n")}</code></pre>);
+      blocks.push(<CodeBlock key={key} code={code.join("\n")} lang={lang} />);
     } else if (/^#{1,6}\s/.test(line)) {
       blocks.push(<p key={key} className="md-heading">{inline(line.replace(/^#+\s+/, ""))}</p>);
       i++;
