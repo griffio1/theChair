@@ -30,6 +30,7 @@
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 .wp-brand {
   display: flex;
@@ -138,11 +139,17 @@
 }
 .wp-threads {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 3px;
   max-height: 35dvh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
+.wp-threads button { width: 100%; max-width: 100%; }
+.wp-threads button:focus-visible { outline-offset: -3px; }
 .wp-threads button > span:nth-child(2) {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1096,11 +1103,13 @@
   }
   .wp-threads {
     display: flex;
+    flex-wrap: wrap;
     grid-column: 1 / -1;
-    overflow-x: auto;
+    overflow-x: hidden;
     max-height: none;
   }
   .wp-threads button {
+    width: auto;
     flex-shrink: 0;
     max-width: 200px;
   }
@@ -1227,7 +1236,7 @@
   min-height: 43px; gap: 11px; border-radius: 12px; font-weight: 550;
   transition: background 230ms var(--ease-fluid),color 230ms var(--ease-fluid),transform 230ms var(--ease-fluid);
 }
-.wp-nav :is(button,a):hover:not(:disabled),.wp-threads button:hover:not(:disabled) { transform: translateX(2px); }
+.wp-nav :is(button,a):hover:not(:disabled) { transform: translateX(2px); }
 .wp-nav .active,.wp-threads .active { color: var(--wp-accent); background: var(--accent-soft); border-color: color-mix(in srgb,var(--wp-accent) 13%,var(--wp-border)); box-shadow: none; }
 .wp-nav a > svg:last-child { margin-left: auto; }
 .wp-glyph { display: grid; place-items: center; }

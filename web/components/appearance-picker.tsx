@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Theme = "light" | "dark" | "pride";
 const themes: { value: Theme; label: string }[] = [
@@ -33,6 +33,19 @@ function ThemeIcon({ theme }: { theme: Theme }) {
 /** Shared by the live dashboard and the workspace preview. */
 export function AppearancePicker() {
   const [theme, setTheme] = useState<Theme>("light");
+  const [open, setOpen] = useState(false);
+  const picker = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    picker.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
+    function closeOutside(event: PointerEvent) {
+      if (!picker.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", closeOutside);
+    return () => document.removeEventListener("pointerdown", closeOutside);
+  }, [open]);
 
   useEffect(() => {
     // The layout applies the preference before first paint; reuse that decision.
@@ -62,12 +75,35 @@ export function AppearancePicker() {
   }
 
   return (
-    <label className="theme-toggle" title="Choose appearance">
-      <ThemeIcon theme={theme} />
-      <select className="theme-select" aria-label="Appearance" value={theme}
-        onChange={(event) => { if (isTheme(event.target.value)) change(event.target.value); }}>
-        {themes.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-      </select>
-    </label>
+    <div className="theme-picker" ref={picker}
+      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false); }}>
+      <button className="theme-toggle" type="button" ref={trigger}
+        aria-label={`Appearance: ${themes.find(item => item.value === theme)?.label}`}
+        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setOpen(true); }
+        }}>
+        <ThemeIcon theme={theme} />
+        <span>{themes.find(item => item.value === theme)?.label}</span>
+        <svg className="theme-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="m3 4.5 3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      {open && <div className="theme-menu" role="menu" aria-label="Appearance"
+        onKeyDown={(event) => {
+          if (event.key === "Escape") { event.preventDefault(); setOpen(false); trigger.current?.focus(); return; }
+          const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'));
+          const index = options.indexOf(document.activeElement as HTMLButtonElement);
+          const next = event.key === "ArrowDown" ? (index + 1) % options.length
+            : event.key === "ArrowUp" ? (index - 1 + options.length) % options.length
+            : event.key === "Home" ? 0 : event.key === "End" ? options.length - 1 : -1;
+          if (next >= 0) { event.preventDefault(); options[next]?.focus(); }
+        }}>
+        {themes.map(({ value, label }) => <button type="button" key={value}
+          role="menuitemradio" aria-checked={theme === value} tabIndex={theme === value ? 0 : -1}
+          onClick={() => { change(value); setOpen(false); trigger.current?.focus(); }}>
+          <ThemeIcon theme={value} /><span>{label}</span>
+          {theme === value && <svg className="theme-check" width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m3 8 3 3 7-7" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+        </button>)}
+      </div>}
+    </div>
   );
 }
