@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import WorkspaceConnections from "./workspace-connections";
 import { AppearancePicker } from "../components/appearance-picker";
+import { FlowArt } from "./flow-art";
 import { ChatImages, ImagePicker } from "./chat-images";
 import type { ChatImage } from "../lib/workspace-types";
 import { MessageReactions, useConversationReactions } from "./chat-reactions";
@@ -573,7 +574,7 @@ export default function TeamDashboard({
           </span>
         </a>
         <div className="workspace-label">
-          <span className="project-icon">T</span>
+          <span className="project-icon">{workspaceName.slice(0, 1).toUpperCase()}</span>
           <div>
             <strong>{workspaceName}</strong>
             <span>Team agreements</span>
@@ -594,6 +595,7 @@ export default function TeamDashboard({
               onClick={() => setView(item.key)}
               aria-current={view === item.key ? "page" : undefined}
               title={item.label}
+              aria-label={item.label}
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
@@ -661,25 +663,17 @@ export default function TeamDashboard({
         <main className="dashboard">
           <section className="overview" aria-label="Workspace overview">
             <div>
-              <div className="eyebrow">LESS FRICTION. MORE BUILDING.</div>
+              <div className="eyebrow">YOUR TEAM. IN FLOW.</div>
               <h1>
-                Great minds.
-                <br className="mobile-break" /> Same page<span>.</span>
+                Many minds.
+                <br /> One direction<span>.</span>
               </h1>
               <p>
-                A shared space for your team, your agents, and the decisions
-                that connect them.
+                The conversation, the code, the shared understanding.
+                Everything comes together here.
               </p>
             </div>
-            <div className="overview-art" aria-hidden="true">
-              <span className="orbit orbit-one" />
-              <span className="orbit orbit-two" />
-              <span className="orbit-center">
-                <ChairMark />
-              </span>
-              <span className="orbit-node node-one" />
-              <span className="orbit-node node-two" />
-            </div>
+            <FlowArt className="overview-art" />
           </section>
           {canApprove && <WorkspaceConnections workspaceId={workspaceId} />}
           <div className="metrics">
@@ -738,7 +732,8 @@ export default function TeamDashboard({
           )}
           {reactions.error && <p className="reaction-error" role="alert">{reactions.error}</p>}
           <div
-            className={`content-grid ${view === "contracts" ? "contracts-view" : ""}`}
+            key={view}
+            className={`content-grid view-enter ${view === "contracts" ? "contracts-view" : ""}`}
           >
             <section
               className="main-panel"

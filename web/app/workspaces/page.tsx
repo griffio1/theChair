@@ -13,6 +13,7 @@ import { AppearancePicker } from "../../components/appearance-picker";
 import { ChatImages, ImagePicker } from "../../components/chat-images";
 import { lastConversation, rememberConversation } from "../../lib/chat-selection";
 import { MessageReactions, useConversationReactions } from "../../components/chat-reactions";
+import { BrandMark, FlowArt } from "../../components/flow-art";
 import type {
   Workspace,
   WorkspaceChat,
@@ -26,6 +27,25 @@ import "./workspaces.css";
 type View = "home" | "chat" | "people" | "contracts" | "conflicts";
 type Draft = { body: string; clientMessageId: string; images?: ChatImage[] };
 type Modal = "workspace" | "chat" | "invite" | "share";
+
+type HubIconName = "home" | "people" | "contracts" | "conflicts" | "chat" | "plus" | "arrow" | "send" | "search" | "mail" | "close" | "spark";
+function HubIcon({name,size = 18}: {name:HubIconName;size?:number}) {
+  const paths: Record<HubIconName, React.ReactNode> = {
+    home: <><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,
+    people: <><circle cx="9" cy="8" r="3"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v2"/></>,
+    contracts: <><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 8h6M9 12h6M9 16h3"/></>,
+    conflicts: <><path d="m12 3 9 17H3L12 3Z"/><path d="M12 9v4m0 3v.1"/></>,
+    chat: <><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H4l-2 2V11.5a9.5 9.5 0 0 1 19 0Z"/><path d="M7 9h9m-9 4h6"/></>,
+    plus: <path d="M12 5v14M5 12h14"/>,
+    arrow: <path d="M6 18 18 6M6 6h12v12"/>,
+    send: <path d="M12 19V5m-6 6 6-6 6 6"/>,
+    search: <><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></>,
+    mail: <><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></>,
+    close: <path d="m6 6 12 12M6 18 18 6"/>,
+    spark: <path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z"/>,
+  };
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
 
 class ApiError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -105,9 +125,17 @@ function AccountForm({ invited }: { invited: boolean }) {
     }
   }
   return (
+    <div className="wp-auth-layout">
+      <section className="wp-auth-story">
+        <div className="wp-eyebrow"><span className="wp-status-dot" /> HUMANS + AGENTS. ONE TEAM.</div>
+        <h2>Big ideas.<br />Same page<span>.</span></h2>
+        <FlowArt className="wp-auth-art" />
+        <div className="wp-auth-story-foot"><span className="wp-story-mark"><BrandMark size={24} /></span><p>A home for your people, your plans,<br />and whatever you build next.</p></div>
+      </section>
     <div className="wp-account-card">
-      <div className="wp-eyebrow">A SEAT AT THE TABLE</div>
-      <h1>{signup ? "Let’s build together." : "Welcome back."}</h1>
+      <span className="wp-account-symbol"><HubIcon name="spark" size={25} /></span>
+      <div className="wp-eyebrow">YOUR NEXT CHAPTER</div>
+      <h1>{signup ? "Make yourself at home." : "Take your seat."}</h1>
       <p className="wp-dialog-copy">
         {invited
           ? "Sign in with the email address that received the invitation to join your team."
@@ -159,7 +187,7 @@ function AccountForm({ invited }: { invited: boolean }) {
           </p>
         )}
         <button className="wp-primary" disabled={busy} type="submit">
-          {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}
+          {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}<HubIcon name="arrow" size={16} />
         </button>
         <button
           className="wp-text-button wp-auth-switch"
@@ -176,6 +204,7 @@ function AccountForm({ invited }: { invited: boolean }) {
             : "New here? Create an account"}
         </button>
       </form>
+    </div>
     </div>
   );
 }
@@ -601,10 +630,10 @@ export default function Workspaces() {
     s.name.toLowerCase().includes(query.toLowerCase()),
   );
   return (
-    <div className="workspace-hub wp-live">
+    <div className={`workspace-hub wp-live ${!session ? "wp-guest" : ""}`}>
       <aside className="wp-sidebar" aria-label="Workspace navigation">
         <a className="wp-brand" href="/workspaces">
-          <span className="wp-brand-mark">↳</span>theChair
+          <span className="wp-brand-mark"><BrandMark size={25} /></span>theChair
           <span className="wp-dot">.</span>
         </a>
         {session && accountReady && (
@@ -630,27 +659,28 @@ export default function Workspaces() {
             <nav className="wp-nav" aria-label="Views">
               {(
                 [
-                  ["home", "▦", "All workspaces"],
-                  ["people", "♧", "People & invites"],
-                  ["contracts", "≡", "Contracts"],
-                  ["conflicts", "△", "Conflicts"],
+                  ["home", "home", "All workspaces"],
+                  ["people", "people", "People & invites"],
+                  ["contracts", "contracts", "Contracts"],
+                  ["conflicts", "conflicts", "Conflicts"],
                 ] as const
               ).map(([key, icon, label]) => (
                 <button
                   key={key}
                   className={view === key ? "active" : ""}
+                  aria-current={view === key ? "page" : undefined}
                   disabled={busy || (key !== "home" && !activeSpace)}
                   onClick={() => setView(key)}
                 >
                   <span className="wp-glyph" aria-hidden="true">
-                    {icon}
+                    <HubIcon name={icon} />
                   </span>
                   {label}
                 </button>
               ))}
               {activeSpace === teamWorkspace && teamWorkspace && (
                 <a href={`/workspaces/${activeSpace}/team`}>
-                  Team agreements & AI chat ↗
+                  <span className="wp-glyph"><HubIcon name="spark" /></span>Team AI chat<HubIcon name="arrow" size={13} />
                 </a>
               )}
             </nav>
@@ -662,7 +692,7 @@ export default function Workspaces() {
                 onClick={() => open("chat")}
                 aria-label="New chat"
               >
-                +
+                <HubIcon name="plus" size={17} />
               </button>
             </div>
             <nav className="wp-threads" aria-label="Conversations">
@@ -673,6 +703,7 @@ export default function Workspaces() {
                     view === "chat" && activeChat === c.id ? "active" : ""
                   }
                   disabled={busy}
+                  aria-current={view === "chat" && activeChat === c.id ? "page" : undefined}
                   onClick={() => {
                     setActiveChat(c.id);
                     setView("chat");
@@ -680,7 +711,7 @@ export default function Workspaces() {
                   }}
                 >
                   <span className="wp-glyph" aria-hidden="true">
-                    ▤
+                    <HubIcon name="chat" size={17} />
                   </span>
                   <span>{c.title}</span>
                 </button>
@@ -691,7 +722,7 @@ export default function Workspaces() {
               disabled={busy}
               onClick={() => open("workspace")}
             >
-              + New workspace
+              <HubIcon name="plus" size={17} />New workspace
             </button>
           </>
         )}
@@ -721,7 +752,7 @@ export default function Workspaces() {
               className="wp-legacy-link"
               href={`/workspaces/${activeSpace}/team`}
             >
-              Team agreements & AI chat ↗
+              Team agreements & AI chat <HubIcon name="arrow" size={12} />
             </a>
           )}
         </div>
@@ -730,9 +761,9 @@ export default function Workspaces() {
         <header className="wp-topbar">
           <div className="wp-breadcrumb">
             <span>{space?.name ?? "theChair"}</span>
-            <span>/</span>
+            <span className="wp-breadcrumb-divider" aria-hidden="true">/</span>
             <strong>
-              {view === "home"
+              {!session ? "Welcome" : view === "home"
                 ? "Workspaces"
                 : view === "chat"
                   ? (chat?.title ?? "Conversation")
@@ -813,17 +844,17 @@ export default function Workspaces() {
                   </button>
                 </div>
               )}
+              <div className="wp-view" key={view}>
               {view === "home" ? (
                 <>
-                  <section className="wp-page-heading">
-                    <div>
-                      <div className="wp-eyebrow">ROOM TO BUILD TOGETHER</div>
+                  <section className="wp-page-heading wp-home-hero">
+                    <div className="wp-home-copy">
+                      <div className="wp-eyebrow"><span className="wp-status-dot" /> YOUR SPACE TO BUILD</div>
                       <h1>
-                        Your work, in good company<span>.</span>
+                        Good work.<br />Great company<span>.</span>
                       </h1>
                       <p>
-                        A space for every project. A conversation for every
-                        idea.
+                        Bring your people, plans, and agents together.<br className="wp-desktop-break" /> The next good idea starts here.
                       </p>
                     </div>
                     <button
@@ -831,14 +862,16 @@ export default function Workspaces() {
                       disabled={busy}
                       onClick={() => open("workspace")}
                     >
-                      + New workspace
+                      <HubIcon name="plus" size={16} />New workspace
                     </button>
+                    <FlowArt className="wp-home-art" />
                   </section>
                   <div className="wp-list-toolbar">
                     <h2>
                       Your workspaces <span>{spaces.length}</span>
                     </h2>
                     <label className="wp-search">
+                      <HubIcon name="search" size={16} />
                       <input
                         type="search"
                         aria-label="Search workspaces"
@@ -862,8 +895,9 @@ export default function Workspaces() {
                           onClick={() => chooseSpace(s.id)}
                         >
                           <div className={`wp-card-art wp-color-${i % 6}`}>
-                            <span>{s.name.charAt(0).toUpperCase()}</span>
-                            <span className="wp-card-arrow">↗</span>
+                            <FlowArt className="wp-card-flow" />
+                            <span className="wp-card-monogram">{s.name.charAt(0).toUpperCase()}</span>
+                            <span className="wp-card-arrow"><HubIcon name="arrow" size={18} /></span>
                           </div>
                           <div className="wp-space-card-body">
                             <h3>{s.name}</h3>
@@ -876,7 +910,7 @@ export default function Workspaces() {
                                   ? "You own this workspace"
                                   : "Team member"}
                               </span>
-                              <span className="wp-badge">Open workspace</span>
+                            <span className="wp-card-open">Enter workspace <HubIcon name="arrow" size={13} /></span>
                             </div>
                           </div>
                         </button>
@@ -887,7 +921,7 @@ export default function Workspaces() {
                           disabled={busy}
                           onClick={() => open("workspace")}
                         >
-                          <span>+</span>
+                          <span><HubIcon name="plus" size={26} /></span>
                           <h3>
                             {spaces.length
                               ? "Make room for something new"
@@ -920,9 +954,9 @@ export default function Workspaces() {
                 <>
                   <section className="wp-page-heading">
                     <div>
-                      <div className="wp-eyebrow">BETTER WITH YOUR PEOPLE</div>
+                      <div className="wp-eyebrow">YOUR PEOPLE, YOUR MOMENTUM</div>
                       <h1>
-                        A seat at the table<span>.</span>
+                        Built with good people<span>.</span>
                       </h1>
                       <p>Everyone building in {current.workspace.name}.</p>
                     </div>
@@ -932,7 +966,7 @@ export default function Workspaces() {
                         disabled={busy}
                         onClick={() => open("invite")}
                       >
-                        + Invite someone
+                        <HubIcon name="plus" size={16} />Invite someone
                       </button>
                     )}
                   </section>
@@ -994,7 +1028,7 @@ export default function Workspaces() {
                         current.invitations.map((i) => (
                           <div className="wp-person" key={i.id}>
                             <span className="wp-avatar wp-invite-avatar">
-                              @
+                              <HubIcon name="mail" size={18} />
                             </span>
                             <div>
                               <strong>{i.email}</strong>
@@ -1136,8 +1170,7 @@ export default function Workspaces() {
                         </div>
                         <h1>{chat?.title ?? "Conversation"}</h1>
                         <p>
-                          {syncState} · latest 200 messages · refreshes every 5
-                          seconds
+                          <span className={`wp-status-dot ${syncState === "Synced" ? "is-synced" : ""}`} />{syncState} · A conversation with your team
                         </p>
                       </div>
                       <button
@@ -1145,7 +1178,7 @@ export default function Workspaces() {
                         disabled={busy}
                         onClick={() => open("chat")}
                       >
-                        + New chat
+                        <HubIcon name="plus" size={16} />New chat
                       </button>
                     </header>
                     <div className="wp-messages" aria-busy={loadingMessages}>
@@ -1179,7 +1212,7 @@ export default function Workspaces() {
                         ))
                       ) : (
                         <div className="wp-empty">
-                          <span className="wp-empty-symbol">✳</span>
+                          <span className="wp-empty-symbol"><HubIcon name="spark" size={26} /></span>
                           <h2>Start something together</h2>
                           <p>
                             Share a plan, ask a question, or welcome your team.
@@ -1192,7 +1225,7 @@ export default function Workspaces() {
                               "What should we tackle next?",
                             ].map((p) => (
                               <button key={p} onClick={() => updateDraft(p)}>
-                                {p} ↗
+                                {p}<HubIcon name="arrow" size={12} />
                               </button>
                             ))}
                           </div>
@@ -1241,7 +1274,7 @@ export default function Workspaces() {
                           type="submit"
                           disabled={busy || uploading || !chat || (!draft.trim() && !draftImages.length)}
                         >
-                          {busy ? "Sending…" : "Send message ↑"}
+                          {busy ? "Sending…" : "Send message"}<HubIcon name="send" size={16} />
                         </button>
                       </div>
                     </form>
@@ -1250,7 +1283,8 @@ export default function Workspaces() {
                     </div>
                   </section>
                   <aside className="wp-context">
-                    <span className="wp-context-icon">✳</span>
+                    <FlowArt className="wp-context-art" />
+                    <span className="wp-context-icon"><HubIcon name="spark" size={25} /></span>
                     <h2>On the same page.</h2>
                     <p>
                       A place for your people and the ideas you’re building
@@ -1271,7 +1305,7 @@ export default function Workspaces() {
                       disabled={busy}
                       onClick={() => setView("people")}
                     >
-                      People & invites ↗
+                      People & invites<HubIcon name="arrow" size={14} />
                     </button>
                     <div className="wp-context-note">
                       <strong>Team conversation</strong>
@@ -1288,12 +1322,13 @@ export default function Workspaces() {
                   </aside>
                 </div>
               )}
+              </div>
             </>
           )}
         </main>
         <footer className="wp-footer">
           theChair · Git merges code. We merge intent.
-          <span>More room for everyone ✳</span>
+          <span>Made for your next big idea<HubIcon name="spark" size={12} /></span>
         </footer>
       </div>
       {modal && session && accountReady && (
@@ -1322,7 +1357,7 @@ export default function Workspaces() {
               disabled={busy}
               onClick={() => setModal(null)}
             >
-              ×
+              <HubIcon name="close" size={18} />
             </button>
           </div>
           {modal === "share" ? (

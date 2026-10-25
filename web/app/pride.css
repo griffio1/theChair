@@ -1,0 +1,91 @@
+/* Pride is intentionally maximal: saturated edges, readable pastel surfaces. */
+:root[data-theme="pride"] {
+  --rainbow: linear-gradient(110deg,#ff4779,#ff993e,#f6cf35,#39c881,#3999f2,#9e58e9,#ee64bb);
+  --rainbow-soft: linear-gradient(120deg,#ffe4ee,#fff0df 18%,#fff8d7 35%,#e0f9e8 51%,#e2f1ff 68%,#eee3ff 84%,#ffe2f4);
+  --rainbow-dark: linear-gradient(110deg,#b71e51,#944a0d,#766000,#176147,#224ab0,#752cb4,#a52b75);
+  --flow-first: #ff5a8b; --flow-orange: #ffa344; --flow-yellow: #fadd4d;
+  --flow-green: #32cf9b; --flow-blue: #419bf8; --flow-last: #a24eee;
+}
+:root[data-theme="pride"] body { background: var(--rainbow-soft); background-attachment: fixed; }
+:root[data-theme="pride"] body::after { height: 5px; background: var(--rainbow); }
+:root[data-theme="pride"] :is(.sidebar,.wp-sidebar) {
+  background: linear-gradient(175deg,#ffe0ee,#fff1c9 26%,#dff9e5 51%,#deefff 74%,#f0ddff);
+  border-color: #d7b4e9; box-shadow: 0 18px 60px -32px #b928a245;
+}
+:root[data-theme="pride"] :is(.topbar,.wp-topbar) {
+  background: linear-gradient(100deg,#ffdfefb3,#fff1bab3,#d7f6e3b3,#daedffb3,#f1d8ffb3);
+  border-radius: 16px;
+}
+:root[data-theme="pride"] :is(.overview,.wp-home-hero) {
+  border: 2px solid transparent; background: var(--rainbow-soft) padding-box,var(--rainbow) border-box;
+  box-shadow: 0 18px 60px -30px #c3379f50;
+}
+:root[data-theme="pride"] .overview::before { background: radial-gradient(ellipse at 80% 50%,#ffffff00,#ffffff44); }
+:root[data-theme="pride"] :is(.overview h1,.wp-home-hero h1,.wp-page-heading h1,.wp-account-card h1) {
+  background: var(--rainbow-dark); color: #50205f; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+:root[data-theme="pride"] :is(.brand-mark,.wp-brand-mark,.note-symbol,.footer-spark) { color: #9b287e; }
+:root[data-theme="pride"] :is(.nav-item.active,.wp-nav .active,.wp-threads .active) {
+  border: 1px solid transparent; background: linear-gradient(110deg,#ffe6f0dd,#fff1ccdd,#dff8e9dd,#e7e9ffdd) padding-box,var(--rainbow) border-box; color: #57236a;
+  box-shadow: 0 3px 12px #b756c916;
+}
+:root[data-theme="pride"] :is(.main-panel,.contracts-panel,.wp-chat-panel,.wp-context,.wp-people-panel,.wp-space-card,.wp-dialog,.wp-auth-layout,.workspace-connections) {
+  border: 2px solid transparent;
+  background: linear-gradient(#fffaff,#fffaff) padding-box,var(--rainbow) border-box;
+}
+:root[data-theme="pride"] :is(.panel-header,.wp-panel-heading,.wp-chat-heading,.wp-space-card-body) {
+  background: var(--rainbow-soft);
+}
+:root[data-theme="pride"] :is(.conversation,.wp-messages) {
+  background: repeating-linear-gradient(135deg,#fff4f9 0,#fff9ee 15%,#f9fced 30%,#f0fcf5 45%,#f1f8ff 60%,#f9f2ff 78%,#fff4fa 100%);
+}
+:root[data-theme="pride"] :is(.metric,.contract-card,.wp-agreement) {
+  border: 1px solid transparent; background: linear-gradient(#fffafff0,#fffafff0) padding-box,var(--rainbow) border-box;
+}
+:root[data-theme="pride"] .metric:nth-child(1) { background: linear-gradient(120deg,#ffe1ec,#fff0d9) padding-box,var(--rainbow) border-box; }
+:root[data-theme="pride"] .metric:nth-child(2) { background: linear-gradient(120deg,#fff2c5,#dcf7e6) padding-box,var(--rainbow) border-box; }
+:root[data-theme="pride"] .metric:nth-child(3) { background: linear-gradient(120deg,#deedff,#f1ddff) padding-box,var(--rainbow) border-box; }
+:root[data-theme="pride"] :is(.composer,.wp-composer,.team-message-bubble,.wp-message-bubble) {
+  border: 2px solid transparent; background: linear-gradient(#fffcfff2,#fffcfff2) padding-box,var(--rainbow) border-box;
+}
+:root[data-theme="pride"] .wp-message-own .wp-message-bubble,
+:root[data-theme="pride"] .message-ai .team-message-bubble {
+  background: var(--rainbow-soft) padding-box,var(--rainbow) border-box;
+}
+:root[data-theme="pride"] :is(.workspace-label,.wp-space-picker select,.theme-toggle,.wp-search input,.wp-field input,.connections-grid input) {
+  border: 1px solid transparent; background: linear-gradient(#fffcff,#fffcff) padding-box,var(--rainbow) border-box;
+}
+:root[data-theme="pride"] :is(.button-dark,.send-button,.wp-primary) {
+  background: var(--rainbow-dark); color: #fff; border-color: transparent;
+  box-shadow: 0 4px 14px #a5309740;
+}
+:root[data-theme="pride"] :is(.button-dark,.send-button,.wp-primary):disabled {
+  background: var(--rainbow-soft); color: #775b82; box-shadow: none;
+}
+:root[data-theme="pride"] :is(.wp-secondary,.chat-image-add,.reaction-count,.reaction-trigger,.panel-tag,.wp-badge,.theme-toggle) {
+  background: var(--rainbow-soft); color: #56256a; border-color: #dcb9ed;
+}
+:root[data-theme="pride"] :is(.avatar,.wp-avatar,.ai-avatar,.project-icon,.wp-account-symbol,.wp-empty-symbol) {
+  background: var(--rainbow-soft); color: #552568; border: 1px solid #d9b5e9;
+}
+:root[data-theme="pride"] .reaction-picker {
+  border: 2px solid transparent; background: linear-gradient(#fffbff,#fffbff) padding-box,var(--rainbow) border-box;
+  box-shadow: 0 6px 26px #b934a632;
+}
+:root[data-theme="pride"] .wp-card-art {
+  background: linear-gradient(135deg,#ff9fbc,#ffcb8f 20%,#f8e88c 37%,#94e3b8 54%,#93c8f7 72%,#c8a1f0 88%,#f5ade1);
+}
+:root[data-theme="pride"] .wp-card-flow { filter: none; border-color: #ffffffb3; box-shadow: 0 12px 35px #8843c52a,inset 0 0 20px #fff5; }
+:root[data-theme="pride"] .wp-create-card { background: var(--rainbow-soft) padding-box,var(--rainbow) border-box; }
+:root[data-theme="pride"] .wp-auth-story {
+  background: linear-gradient(145deg,#76184e,#71322d 20%,#695223 35%,#1e604f 52%,#213f85 70%,#562b92 87%,#822b75);
+}
+:root[data-theme="pride"] .wp-auth-art { filter: none; }
+:root[data-theme="pride"] .wp-auth-story :is(.wp-eyebrow,.wp-auth-story-foot p) { color: #fff4ff; }
+:root[data-theme="pride"] .wp-auth-story h2 > span { color: #ffe283; }
+:root[data-theme="pride"] .wp-guest .wp-sidebar { border: 0; box-shadow: none; background: transparent; }
+:root[data-theme="pride"] :is(.wp-footer,.workspace-footer,.ledger-note) { color: #77527e; }
+:root[data-theme="pride"] .ledger-note { background: var(--rainbow-soft); }
+/* Semantic warnings still read as warnings amid the celebration. */
+:root[data-theme="pride"] .conflict-card { border-left: 4px solid var(--warning); background: #fff5e7; }
+:root[data-theme="pride"] .resolved-card { border-left: 4px solid var(--success); background: #effbf1; }

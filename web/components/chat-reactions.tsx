@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
 import "./chat-reactions.css";
 
@@ -65,27 +65,32 @@ export function MessageReactions({messageId,reactions}: {messageId:string;reacti
   const [open,setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const picker = useRef<HTMLDivElement>(null);
+  const pickerId = useId();
   const rows = reactions.rows.filter(r => r.messageId === messageId);
   useEffect(() => {
     if (!open) return;
+    // The picker precedes its trigger in the DOM, so Tab alone cannot enter it
+    // after opening. Move focus to the first available native button.
+    picker.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     const close = (event:PointerEvent) => { if (!root.current?.contains(event.target as Node)) setOpen(false); };
     document.addEventListener("pointerdown",close);
     return () => document.removeEventListener("pointerdown",close);
   },[open]);
   return <div className="message-reactions" ref={root} data-open={open || undefined} onKeyDown={event => {
-    if (event.key === "Escape") {setOpen(false);button.current?.focus();}
-  }}>
-    <div className="reaction-picker" role="group" aria-label="Choose a reaction">
+    if (event.key === "Escape") {event.preventDefault();setOpen(false);button.current?.focus();}
+  }} onBlur={event => {if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);}}>
+    <div className="reaction-picker" ref={picker} id={pickerId} role="group" aria-label="Choose a reaction">
       {choices.map(([emoji,label]) => <button type="button" key={emoji} title={label} aria-label={label}
         aria-pressed={rows.some(r => r.emoji === emoji && r.reactedByMe)} disabled={!!reactions.busy}
-        onClick={() => {void reactions.toggle(messageId,emoji);setOpen(false);}}><span>{emoji}</span></button>)}
+        onClick={() => {void reactions.toggle(messageId,emoji);setOpen(false);button.current?.focus();}}><span>{emoji}</span></button>)}
     </div>
     <div className="reaction-counts">
       {rows.map(r => <button type="button" key={r.emoji} className="reaction-count" aria-pressed={r.reactedByMe}
         aria-label={`${r.emoji}, ${r.count} reaction${r.count === 1 ? "" : "s"}${r.reactedByMe ? ", including you" : ""}`}
         title={r.people.map(person => person.displayName).join(", ")} disabled={!!reactions.busy}
         onClick={() => void reactions.toggle(messageId,r.emoji)}>{r.emoji}<span>{r.count}</span></button>)}
-      <button ref={button} type="button" className="reaction-trigger" aria-label="React to this message" aria-expanded={open}
+      <button ref={button} type="button" className="reaction-trigger" aria-label="React to this message" aria-expanded={open} aria-controls={pickerId}
         onClick={() => setOpen(value => !value)}>☺<span>React</span></button>
       {reactions.busy === messageId && <span className="reaction-saving" role="status">Saving…</span>}
     </div>

@@ -45,7 +45,7 @@ function PrivateImage({ workspaceId, image }: { workspaceId: string; image: Chat
     </button> : error ? <button type="button" className="chat-image-retry" onClick={() => setAttempt(n => n + 1)}>{error} Retry</button>
       : <span className="chat-image-loading" role="status">Loading image…</span>}
     <span className="chat-image-name" title={image.name}>{image.name}</span>
-    <dialog className="chat-image-dialog" ref={dialog} onClick={e => { if (e.target === e.currentTarget) dialog.current?.close(); }}>
+    <dialog className="chat-image-dialog" ref={dialog} aria-label={`Image preview: ${image.name}`} onClick={e => { if (e.target === e.currentTarget) dialog.current?.close(); }}>
       <button type="button" onClick={() => dialog.current?.close()} autoFocus>Close image ×</button>
       {url && <img src={url} alt={image.name} />}
     </dialog>
