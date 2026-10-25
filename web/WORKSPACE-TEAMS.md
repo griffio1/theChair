@@ -75,10 +75,11 @@ used to recognize theChair's own source tree for its demo-file exclusions.
 
 ## Verification
 
-Root suite: 36 tests. Web suite: 21 tests, including PostgreSQL isolation,
+Root suite: 36 tests. Web suite: 24 tests, including PostgreSQL isolation,
 concurrent server contexts, AI context/proposal isolation and credential controls.
-Web TypeScript and production build pass. The existing root typecheck issue at
-`engine/diff.test.ts:68` remains Parag's unrelated task.
+Root and web TypeScript checks pass, including the evidence assertion in
+`engine/diff.test.ts:68` that Carter explicitly authorized fixing. The production
+build also passes.
 
 Live disposable-account checks pass for separate ledgers and claims, scoped
 agents, revocation, owner/member restrictions, signed webhook ping routing,
@@ -94,3 +95,26 @@ node --env-file=web/.env.local --import tsx web/scripts/check-workspace-teams.ts
 node --env-file=web/.env.local --import tsx web/scripts/check-workspaces.ts
 node --env-file=web/.env.local --import tsx web/scripts/check-team-access.ts
 ```
+
+## Invitations and shared ownership
+
+`workspace-roles.sql` is installed after the three earlier migrations. Carter
+approved `workspace-member-role` v1. Under **People & invites**, owners can use
+**Make owner** after a teammate accepts an invitation. Owners can connect
+repositories, manage agent credentials, invite members and approve agreements.
+The database serializes role changes and rejects removal of the last owner.
+Demotion immediately removes owner-only API access; issued agent credentials
+also stop working when the issuer is no longer an owner.
+
+Invitations created locally use `THECHAIR_PUBLIC_URL` when set, otherwise the
+configured public `THECHAIR_API_URL`. Hosted requests use their own origin unless
+an explicit public URL is configured. The same rule supplies webhook setup URLs.
+Links keep the invitation token in the fragment, and invitations still require
+matching verified email. The UI warns if only a localhost link is available.
+No invitation emails are sent automatically.
+
+The hosted AI chat and Gemini extractor were exercised successfully. The demo
+backend returns userId and token on port 4000. Repository connection/publishing
+and an actual GitHub push remain pending a repository administrator's setup;
+Test67 had no connection at verification time. Browser automation exposed no
+available browser, so visual theme/mobile checks remain manual.

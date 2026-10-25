@@ -37,4 +37,5 @@ Only the owner of a directory edits it. Everyone else asks in the main chat.
 - `POST /api/workspaces/:workspaceId/invitations` (workspace-invite v1): request `{ email: string }` → response `{ invitation: object }`
 - `GET /api/workspaces` (workspace-list v1): request `{  }` → response `{ workspaces: array }`
 - `POST /api/workspaces/:workspaceId/integrations/repository` (workspace-repository-connect v1): request `{ repository: string, token: string, webhookSecret: string }` → response `{ repository: object }`
+- `POST /api/workspaces/:workspaceId/members/:userId/role` (workspace-member-role v1): request `{ role: string }` → response `{ member: object }`
 <!-- THECHAIR:CONTRACTS:END -->

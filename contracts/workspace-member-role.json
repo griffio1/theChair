@@ -1,0 +1,12 @@
+{
+  "id": "workspace-member-role",
+  "name": "Change workspace member role",
+  "method": "POST",
+  "path": "/api/workspaces/:workspaceId/members/:userId/role",
+  "request": [{"name":"role","type":"string","required":true}],
+  "response": [{"name":"member","type":"object","required":true}],
+  "version": 1,
+  "status": "approved",
+  "owner": "carter",
+  "notes": "Only existing owners can change a member to owner or member; atomically preserve at least one owner."
+}

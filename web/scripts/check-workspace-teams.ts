@@ -201,20 +201,34 @@ async function main() {
       (await request("/api/contracts", undefined, undefined, agent)).status,
       401,
     );
+    if (process.env.WORKSPACE_CHECK_AI === "1") {
+      const chat = await request(
+        "/api/chat",
+        alice.token,
+        {
+          body: "Reply with one short sentence confirming you are ready. Do not propose a contract.",
+        },
+        headers(a),
+      );
+      assert.equal(chat.status, 200, "Live AI chat succeeds");
+      assert.ok(
+        chat.data.some((m: any) => m.author.type === "ai" && m.body?.trim()),
+        "Live AI returns an answer",
+      );
+      console.log("Live AI chat passed in a disposable workspace.");
+    }
     // Test HMAC routing with disposable database fixtures. Ping never contacts GitHub.
     for (let i = 0; i < 2; i++) {
       const secret = randomBytes(32).toString("hex"),
         repoId = 8_000_000_000 + Math.floor(Math.random() * 100_000_000);
-      const insert = await admin
-        .from("chair_repository_connections")
-        .insert({
-          workspace_id: spaces[i],
-          repository_id: repoId,
-          repository: `test-disposable/${randomUUID()}`,
-          token: "unused-ping-fixture",
-          webhook_secret: secret,
-          connected_by: i === 0 ? alice.id : bob.id,
-        });
+      const insert = await admin.from("chair_repository_connections").insert({
+        workspace_id: spaces[i],
+        repository_id: repoId,
+        repository: `test-disposable/${randomUUID()}`,
+        token: "unused-ping-fixture",
+        webhook_secret: secret,
+        connected_by: i === 0 ? alice.id : bob.id,
+      });
       assert.equal(insert.error, null);
       const payload = { repository: { id: repoId } },
         raw = JSON.stringify(payload),
@@ -241,14 +255,12 @@ async function main() {
         401,
       );
     }
-    const member = await admin
-      .from("chair_memberships")
-      .insert({
-        workspace_id: a,
-        user_id: bob.id,
-        display_name: "Member",
-        role: "member",
-      });
+    const member = await admin.from("chair_memberships").insert({
+      workspace_id: a,
+      user_id: bob.id,
+      display_name: "Member",
+      role: "member",
+    });
     assert.equal(member.error, null);
     assert.equal(
       (await request("/api/contracts?all=1", bob.token, undefined, headers(a)))

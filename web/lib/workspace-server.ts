@@ -1,3 +1,4 @@
+import { shareUrl } from "./site-url";
 import { RepositoryNotConnectedError } from "../../server/github";
 import { createHash, randomBytes } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -302,6 +303,30 @@ export async function workspaceRequest(req: Request, parts: string[]) {
       conflicts: conflictRows,
     };
   }
+  if (
+    parts.length === 4 &&
+    parts[1] === "members" &&
+    parts[3] === "role" &&
+    req.method === "POST"
+  ) {
+    if (role !== "owner")
+      throw new WorkspaceError(403, "Only owners can change member roles.");
+    const body = await readBody(req);
+    if (body.role !== "owner" && body.role !== "member")
+      throw new WorkspaceError(400, "Choose owner or member.");
+    const result = await db.rpc("chair_change_member_role", {
+      p_workspace: workspaceId,
+      p_user: validId(parts[2]),
+      p_role: body.role,
+    });
+    if (result.error?.code === "23514")
+      throw new WorkspaceError(
+        409,
+        "A workspace must keep at least one owner.",
+      );
+    check(result.error);
+    return { member: result.data };
+  }
   if (parts.length === 2 && parts[1] === "chats" && req.method === "POST") {
     const body = await readBody(req);
     const { data, error } = await db
@@ -380,7 +405,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     return {
       invitation: {
         ...invitation(data),
-        inviteUrl: `/workspaces#invite=${token}`,
+        inviteUrl: shareUrl(`/workspaces#invite=${token}`, req.url),
       },
     };
   }

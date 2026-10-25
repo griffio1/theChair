@@ -186,6 +186,48 @@ async function main() {
       ).status,
       404,
     );
+    assert.equal(
+      (
+        await request(`${base}/members/${owner.id}/role`, owner.token, {
+          role: "member",
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await request(`${base}/members/${member.id}/role`, member.token, {
+          role: "owner",
+        })
+      ).status,
+      403,
+    );
+    assert.equal(
+      (
+        await request(`${base}/members/${member.id}/role`, owner.token, {
+          role: "owner",
+        })
+      ).data.member.role,
+      "owner",
+    );
+    assert.equal(
+      (await request(`${base}/integrations`, member.token)).status,
+      200,
+      "promoted member can configure integrations",
+    );
+    assert.equal(
+      (
+        await request(`${base}/members/${member.id}/role`, owner.token, {
+          role: "member",
+        })
+      ).data.member.role,
+      "member",
+    );
+    assert.equal(
+      (await request(`${base}/integrations`, member.token)).status,
+      403,
+      "demoted member loses integration access",
+    );
     console.log(
       "PASS: real workspace creation, chat persistence, member sharing, invitations, retries, and outsider isolation.",
     );

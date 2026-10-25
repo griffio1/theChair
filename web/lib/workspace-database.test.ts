@@ -37,6 +37,12 @@ test("workspace SQL enforces isolation, ownership, invitation identity and retry
     await db.exec(sql);
     // Reapplying the migration must preserve data and policies.
     await db.exec(sql);
+    const rolesSql = await readFile(
+      new URL("../sql/workspace-roles.sql", import.meta.url),
+      "utf8",
+    );
+    await db.exec(rolesSql);
+    await db.exec(rolesSql);
     const asUser = async (id: string) => {
       await db.exec("reset role");
       await db.query("select set_config('request.jwt.claim.sub', $1, false)", [
@@ -241,6 +247,73 @@ test("workspace SQL enforces isolation, ownership, invitation identity and retry
         );
         await assert.rejects(
           db.query("select public.chair_create_workspace('Bad')"),
+          /permission denied/,
+        );
+      },
+    );
+    await t.test(
+      "role changes require owners and preserve a last owner",
+      async () => {
+        await asUser(member);
+        await assert.rejects(
+          db.query("select chair_change_member_role($1,$2,'owner')", [
+            w,
+            member,
+          ]),
+          /Owner required/,
+        );
+        await asUser(owner);
+        await assert.rejects(
+          db.query("select chair_change_member_role($1,$2,'member')", [
+            w,
+            owner,
+          ]),
+          /at least one owner/,
+        );
+        await assert.rejects(
+          db.query("select chair_change_member_role($1,$2,'owner')", [
+            w,
+            outsider,
+          ]),
+          /Member unavailable/,
+        );
+        await db.query("select chair_change_member_role($1,$2,'owner')", [
+          w,
+          member,
+        ]);
+        await db.query("select chair_change_member_role($1,$2,'member')", [
+          w,
+          owner,
+        ]);
+        await assert.rejects(
+          db.query("select chair_change_member_role($1,$2,'owner')", [
+            w,
+            owner,
+          ]),
+          /Owner required/,
+        );
+        await asUser(member);
+        await assert.rejects(
+          db.query("select chair_change_member_role($1,$2,'member')", [
+            w,
+            member,
+          ]),
+          /at least one owner/,
+        );
+        await db.query("select chair_change_member_role($1,$2,'owner')", [
+          w,
+          owner,
+        ]);
+        await db.query("select chair_change_member_role($1,$2,'member')", [
+          w,
+          member,
+        ]);
+        await db.exec("reset role;set role anon");
+        await assert.rejects(
+          db.query("select chair_change_member_role($1,$2,'owner')", [
+            w,
+            outsider,
+          ]),
           /permission denied/,
         );
       },

@@ -1,3 +1,4 @@
+import { shareUrl } from "./site-url";
 import { createHash, randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { requireTeam } from "./legacy-access";
@@ -82,7 +83,7 @@ export async function integrationsRequest(
     return {
       repository: repository(repo.data),
       credentials: (credentials.data ?? []).map(metadata),
-      webhookUrl: new URL("/api/github/webhook", req.url).href,
+      webhookUrl: shareUrl("/api/github/webhook", req.url),
     };
   }
   if (

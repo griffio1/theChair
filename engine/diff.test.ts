@@ -64,6 +64,7 @@ test("field conflict leads with the evidence line that mentions the field", () =
     ],
   });
   const out = diffShape(c, contracts);
+  assert.ok(out[0]?.evidence, "The conflict includes source evidence");
   assert.deepEqual(
     out[0].evidence.map((e) => e.line),
     [18, 11, 17],

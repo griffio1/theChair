@@ -508,6 +508,24 @@ export default function Workspaces() {
       setBusy(false);
     }
   }
+  async function changeRole(memberId: string, role: "owner" | "member") {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    const actor = userId;
+    try {
+      await api(`/api/workspaces/${activeSpace}/members/${memberId}/role`, {
+        role,
+      });
+      if (actor !== userRef.current) return;
+      setRefresh((n) => n + 1);
+      setNotice(`Member role changed to ${role}.`);
+    } catch (e) {
+      if (actor === userRef.current) setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
   async function join() {
     if (!inviteToken || busy) return;
     setBusy(true);
@@ -904,6 +922,31 @@ export default function Workspaces() {
                           </small>
                         </div>
                         <span className="wp-badge">{m.role}</span>
+                        {current.workspace.role === "owner" && (
+                          <button
+                            className="wp-secondary"
+                            disabled={
+                              busy ||
+                              (m.role === "owner" &&
+                                current.members.filter(
+                                  (person) => person.role === "owner",
+                                ).length === 1)
+                            }
+                            onClick={() =>
+                              void changeRole(
+                                m.userId,
+                                m.role === "owner" ? "member" : "owner",
+                              )
+                            }
+                            title={
+                              m.role === "owner"
+                                ? "Keep at least one workspace owner"
+                                : "Owners can invite people, connect repositories and approve changes"
+                            }
+                          >
+                            {m.role === "owner" ? "Make member" : "Make owner"}
+                          </button>
+                        )}
                       </div>
                     ))}
                   </section>
@@ -1243,6 +1286,15 @@ export default function Workspaces() {
                 that verified email. The link expires in 7 days. No invitation
                 email was sent.
               </p>
+              {inviteUrl &&
+                ["localhost", "127.0.0.1", "[::1]"].includes(
+                  new URL(inviteUrl).hostname,
+                ) && (
+                  <p role="alert" className="wp-dialog-copy">
+                    This link only works on this computer. Open your deployed
+                    workspace to create a link your teammate can use.
+                  </p>
+                )}
               <label className="wp-field">
                 Invitation link
                 <input
