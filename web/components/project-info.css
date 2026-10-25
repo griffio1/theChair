@@ -20,6 +20,8 @@
 .project-form-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .project-error { padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--warning-soft); margin-bottom: 20px; font-size: 13px; }
 .project-error button { display: block; margin-top: 12px; }
+.project-delete-section { margin-top:40px;padding:24px 0;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap; }
+.project-delete-section h2 { font-size:16px;margin:0 0 8px; }.project-delete-section p { font-size:13px;color:var(--muted);margin:0; }
 .wp-breadcrumb a { color: var(--muted); text-decoration: none; min-width: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wp-breadcrumb a:hover { color: var(--blue); }
 @media(max-width:760px) { .project-card { padding: 20px 16px; } .project-heading { align-items: flex-start; flex-direction: column; } }

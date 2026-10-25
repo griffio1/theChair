@@ -518,7 +518,7 @@ export default function TeamDashboard({
             </div>
           )}
           <p className="event-copy">{m.body}</p>
-          {!m.deleted_at&&<MessageReactions messageId={m.id} reactions={reactions} />}
+          {!m.deleted_at&&<MessageReactions messageId={m.id} reactions={reactions} text={m.body} />}
           {!m.deleted_at&&m.author_type==='human'&&m.kind==='text'&&(m.author_user_id??m.image_author_id)===userId&&userId&&<DeleteMessage workspaceId={workspaceId} conversationId="team" messageId={m.id} userId={userId} onDeleted={()=>setMessages(rows=>rows.map(row=>row.id===m.id?{...row,body:'Message deleted',images:[],deleted_at:new Date().toISOString()}:row))} />}
           <div className="event-footer">
             <span>{id}</span>
@@ -565,7 +565,7 @@ export default function TeamDashboard({
             {m.body && <div className="message-body">{ai ? <Markdown text={m.body} /> : m.body}</div>}
             <ChatImages workspaceId={workspaceId} images={m.images} />
           </div>
-          {!m.deleted_at&&<MessageReactions messageId={m.id} reactions={reactions} />}
+          {!m.deleted_at&&<MessageReactions messageId={m.id} reactions={reactions} text={m.body} />}
           {!m.deleted_at&&m.author_type==='human'&&m.kind==='text'&&(m.author_user_id??m.image_author_id)===userId&&userId&&<DeleteMessage workspaceId={workspaceId} conversationId="team" messageId={m.id} userId={userId} onDeleted={()=>setMessages(rows=>rows.map(row=>row.id===m.id?{...row,body:'Message deleted',images:[],deleted_at:new Date().toISOString()}:row))} />}
         </div>
       </article>

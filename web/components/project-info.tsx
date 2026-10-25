@@ -12,7 +12,7 @@ import "./project-info.css";
 
 const localDeadline=(value:string|null)=>value ? new Date(Date.parse(value)-new Date(value).getTimezoneOffset()*60000).toISOString().slice(0,16) : "";
 
-export default function ProjectInfo({workspace,userId,onSaved}:{workspace:Workspace;userId:string;onSaved:(project:Project)=>void}) {
+export default function ProjectInfo({workspace,userId,onSaved,onDeleted}:{workspace:Workspace;userId:string;onSaved:(project:Project)=>void;onDeleted:()=>void}) {
   const [project,setProject]=useState<Project|null>(null);
   const [draft,setDraft]=useState<Project|null>(null);
   const [deadline,setDeadline]=useState("");
@@ -23,6 +23,9 @@ export default function ProjectInfo({workspace,userId,onSaved}:{workspace:Worksp
   const [error,setError]=useState("");
   const [conflict,setConflict]=useState(false);
   const [reload,setReload]=useState(0);
+  const [deleting,setDeleting]=useState(false),[deleteName,setDeleteName]=useState(''),[deleteBusy,setDeleteBusy]=useState(false),[deleteError,setDeleteError]=useState('');
+  const deleteDialog=useRef<HTMLDialogElement>(null),deletePending=useRef(false);
+  useEffect(()=>{if(deleting)deleteDialog.current?.showModal();},[deleting]);
   const textarea=useRef<HTMLTextAreaElement>(null);
   const alive=useRef(false), saving=useRef(false);
   const controller=useRef<AbortController|null>(null);
@@ -71,6 +74,18 @@ export default function ProjectInfo({workspace,userId,onSaved}:{workspace:Worksp
     finally{saving.current=false;if(alive.current)setBusy(false);}
   }
   function cancel() {setDraft(project);setDeadline(localDeadline(project?.deadline ?? null));setEditing(false);setPreview(false);setError("");setConflict(false);}
+  async function removeWorkspace(event:FormEvent){
+    event.preventDefault();if(deletePending.current||deleteName!==project?.name)return;
+    deletePending.current=true;setDeleteBusy(true);setDeleteError('');
+    try{
+      const {data}=await supabase.auth.getSession();
+      if(data.session?.user.id!==userId)throw new Error('Sign in again.');
+      const response=await fetch(`/api/workspaces/${workspace.id}`,{method:'DELETE',headers:{authorization:`Bearer ${data.session.access_token}`,'content-type':'application/json'},body:JSON.stringify({name:deleteName}),signal:AbortSignal.any([controller.current!.signal,AbortSignal.timeout(20000)])});
+      const result=await response.json();if(!response.ok||!result.deleted)throw new Error(result.error||'Could not delete. Refresh before trying again.');
+      if(alive.current)onDeleted();
+    }catch(e){if(alive.current)setDeleteError(e instanceof Error?e.message:'Could not delete.');}
+    finally{deletePending.current=false;if(alive.current)setDeleteBusy(false);}
+  }
 
   return <div className="project-info">
     <section className="wp-page-heading project-heading"><div><span className="project-eyebrow">Project info</span><h1>{project?.name ?? workspace.name}</h1></div>
@@ -106,5 +121,13 @@ export default function ProjectInfo({workspace,userId,onSaved}:{workspace:Worksp
       </fieldset>
       <div className="project-form-actions"><button type="submit" className="wp-primary" disabled={busy || uploading || conflict}>{busy?"Saving…":"Save changes"}</button><button type="button" className="wp-secondary" disabled={busy || uploading} onClick={cancel}>Cancel</button></div>
     </form>}
+    {owner&&project&&!editing&&<section className="project-delete-section"><div><h2>Delete workspace</h2><p>Permanently remove this workspace, chats, files and connections.</p></div><button className="wp-secondary" onClick={()=>{setDeleteName('');setDeleteError('');setDeleting(true);}}>Delete workspace</button></section>}
+    {deleting&&<dialog ref={deleteDialog} className="wp-dialog" aria-labelledby="delete-workspace-title" onCancel={event=>{if(deleteBusy)event.preventDefault();else setDeleting(false);}}>
+      <form onSubmit={removeWorkspace}><h2 id="delete-workspace-title">Delete workspace?</h2><p>This removes the workspace for everyone. It cannot be undone.</p>
+        <label className="wp-field">Type {project?.name} to confirm<input autoFocus autoComplete="off" value={deleteName} disabled={deleteBusy} onChange={event=>setDeleteName(event.target.value)} /></label>
+        {deleteError&&<p role="alert">{deleteError}</p>}
+        <div className="wp-dialog-actions"><button type="button" className="wp-secondary" disabled={deleteBusy} onClick={()=>setDeleting(false)}>Cancel</button><button type="submit" className="wp-primary" disabled={deleteBusy||deleteName!==project?.name}>{deleteBusy?'Deleting…':'Delete workspace'}</button></div>
+      </form>
+    </dialog>}
   </div>;
 }

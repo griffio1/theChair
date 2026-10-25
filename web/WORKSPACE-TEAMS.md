@@ -37,6 +37,16 @@ from the repository root. It creates and removes only disposable test records.
 
 ## Access and data
 
+The reaction picker opens from **React**, not from hovering over message text.
+**Copy** copies the message text without names or timestamps.
+
+Owners can delete a workspace at the bottom of **Project info** after typing its
+current name. Run `sql/workspace-delete.sql` before deploying this action. The
+transaction removes the workspace, memberships, chats, agreements, connections and
+agent credentials. Private image paths are retained in a server-only cleanup queue;
+access is revoked immediately. The existing secret-protected scheduled jobs route
+removes queued objects after a five-minute grace period and retries storage failures.
+
 Project info starts loading as soon as workspace membership is known, in parallel
 with the larger workspace detail request. Skeletons cover account startup,
 workspace lists, project descriptions, agreements and messages. Hidden team

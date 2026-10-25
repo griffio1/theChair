@@ -906,7 +906,7 @@ export default function Workspaces() {
               {ownProfile&&!ownProfile.username&&view!=="account"&&<div className="wp-notice"><button className="wp-text-button" onClick={()=>navigate("account")}>Choose your @username</button></div>}
               {inviteUrl&&view==="people"&&<button className="wp-text-button" onClick={()=>setModal("share")}>Copy invite link</button>}
               <div className="wp-view" key={view}>
-              {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "project" && space ? <ProjectInfo key={`${session.user.id}/${activeSpace}`} workspace={space} userId={session.user.id} onSaved={project => {
+              {view === "account" ? <AccountSettings key={session.user.id} user={session.user} onSaved={() => setRefresh(value => value + 1)} /> : view === "project" && space ? <ProjectInfo key={`${session.user.id}/${activeSpace}`} workspace={space} userId={session.user.id} onDeleted={()=>{setSpaces(rows=>rows.filter(row=>row.id!==activeSpace));setDetail(null);navigate("home");setRefresh(n=>n+1);}} onSaved={project => {
                 setSpaces(previous => previous.map(s => s.id === project.workspaceId ? {...s,name:project.name,slug:project.slug} : s));
                 setDetail(previous => previous?.workspace.id === project.workspaceId ? {...previous,workspace:{...previous.workspace,name:project.name}} : previous);
                 setRefresh(value => value + 1);
@@ -1132,7 +1132,7 @@ export default function Workspaces() {
                                 {m.body && <p>{m.body}</p>}
                                 <ChatImages workspaceId={activeSpace} images={m.images} />
                               </div>
-                              {!m.deletedAt&&<MessageReactions messageId={m.id} reactions={reactions} />}
+                              {!m.deletedAt&&<MessageReactions messageId={m.id} reactions={reactions} text={m.body} />}
                               {!m.deletedAt&&m.author.userId===userId&&userId&&<DeleteMessage workspaceId={activeSpace} conversationId={activeChat} messageId={m.id} userId={userId} onDeleted={()=>mergeMessages(scope,[{...m,body:'Message deleted',images:[],deletedAt:new Date().toISOString()}])} />}
                             </div>
                           </article>

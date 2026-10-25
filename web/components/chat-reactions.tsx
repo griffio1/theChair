@@ -61,8 +61,23 @@ export function useConversationReactions(workspaceId: string, conversationId: st
   }
   return { rows: state.scope === scope ? state.rows : [], busy, error, toggle };
 }
-export function MessageReactions({messageId,reactions}: {messageId:string;reactions:ReturnType<typeof useConversationReactions>}) {
+export function MessageReactions({messageId,reactions,text}: {messageId:string;reactions:ReturnType<typeof useConversationReactions>;text?:string}) {
   const [open,setOpen] = useState(false);
+  const [copied,setCopied] = useState(false);
+  const [copyError,setCopyError] = useState("");
+  const copyTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+  useEffect(()=>()=>{if(copyTimer.current)clearTimeout(copyTimer.current);},[]);
+  async function copyMessage(){
+    if(!text)return;
+    setOpen(false);
+    setCopyError("");
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      if(copyTimer.current)clearTimeout(copyTimer.current);
+      copyTimer.current=setTimeout(()=>setCopied(false),1800);
+    }catch{setCopyError("Couldn't copy. Select the text and copy it.");}
+  }
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const picker = useRef<HTMLDivElement>(null);
@@ -93,6 +108,11 @@ export function MessageReactions({messageId,reactions}: {messageId:string;reacti
       <button ref={button} type="button" className="reaction-trigger" aria-label="React to this message" aria-expanded={open} aria-controls={pickerId}
         onClick={() => setOpen(value => !value)}>☺<span>React</span></button>
       {reactions.busy === messageId && <span className="reaction-saving" role="status">Saving…</span>}
+      {text&&<button type="button" className="reaction-trigger message-copy" aria-label="Copy message" onClick={()=>void copyMessage()}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+        <span role="status">{copied?'Copied':'Copy'}</span>
+      </button>}
     </div>
+    {copyError&&<p className="message-copy-error" role="alert">{copyError}</p>}
   </div>;
 }
