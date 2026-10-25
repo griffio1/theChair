@@ -15,7 +15,7 @@ export function Login() {
     });
     const data = await res.json();
     localStorage.setItem("token", data.token);
-    setGreeting(`Welcome, user #${data.user_id}`);
+    setGreeting(`Welcome, user #${data.userId}`);
   }
 
   return (
