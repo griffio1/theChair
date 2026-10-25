@@ -145,8 +145,11 @@
   max-height: 35dvh;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
 }
+.wp-threads::-webkit-scrollbar { display: none; }
 .wp-threads button { width: 100%; max-width: 100%; }
+.wp-threads button:active:not(:disabled) { transform: none; }
 .wp-threads button:focus-visible { outline-offset: -3px; }
 .wp-threads button > span:nth-child(2) {
   min-width: 0;
