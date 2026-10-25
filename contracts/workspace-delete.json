@@ -1,0 +1,23 @@
+{
+  "id": "workspace-delete",
+  "name": "Delete workspace",
+  "path": "/api/workspaces/:workspaceId",
+  "owner": "carter",
+  "method": "DELETE",
+  "status": "approved",
+  "request": [
+    {
+      "name": "name",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "version": 1,
+  "response": [
+    {
+      "name": "deleted",
+      "type": "boolean",
+      "required": true
+    }
+  ]
+}
