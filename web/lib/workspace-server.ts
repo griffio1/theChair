@@ -251,7 +251,7 @@ export async function workspaceRequest(req: Request, parts: string[]) {
     const [, found, rows] = await Promise.all([
       membership(ctx, workspaceId),
       db.from("chair_chats").select("id").eq("workspace_id", workspaceId).eq("id", chatId).maybeSingle(),
-      db.from("chair_messages").select("id,workspace_id,chat_id,author_id,author_name,body,images,created_at")
+      db.from("chair_messages").select("id,workspace_id,chat_id,author_id,author_name,body,images,created_at,deleted_at")
         .eq("workspace_id", workspaceId).eq("chat_id", chatId)
         .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(200),
     ]);
