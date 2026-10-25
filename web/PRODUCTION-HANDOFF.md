@@ -19,7 +19,7 @@ Validation: root 81 tests passed; web 72 tests passed; root TypeScript passed. M
 
 ## Before public launch
 
-1. Configure a Cloudflare Managed Turnstile widget for the deployment hostname. Put its public key in Vercel `NEXT_PUBLIC_TURNSTILE_SITE_KEY`; put its secret in Supabase Auth CAPTCHA settings and enable Turnstile enforcement there. Production signup intentionally refuses missing configuration. Rebuild after setting the public key.
+1. Optional (we chose not to use it): configure a Cloudflare Managed Turnstile widget for the deployment hostname. Put its public key in Vercel `NEXT_PUBLIC_TURNSTILE_SITE_KEY`; put its secret in Supabase Auth CAPTCHA settings and enable Turnstile enforcement there. Without it, signup works with no verification. Rebuild after setting the public key.
 2. Verify Supabase production SMTP, site URL, allowed `/workspaces` and `/recover` redirect URLs, email confirmation, signup and recovery emails. Email confirmation is currently required; SMTP and CAPTCHA enforcement remain unverified.
 3. Generate a private random secret of at least 32 characters. Set Vercel `CRON_SECRET` and GitHub Actions `THECHAIR_JOB_SECRET` to that same value. Set repository variable `THECHAIR_JOB_URL=https://the-chair-peach.vercel.app/api/internal/jobs` and `THECHAIR_JOB_RUNNER_ENABLED=true`. The workflow is disabled without that flag and schedules run from the default branch after merge. Check failed jobs and workflow alerts.
 4. Rotate credentials previously shared in conversation before public release. Never commit or print `.env.local` or tokens.

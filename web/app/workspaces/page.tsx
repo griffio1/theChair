@@ -15,7 +15,7 @@ import { lastConversation, rememberConversation } from "../../lib/chat-selection
 import { MessageReactions, useConversationReactions } from "../../components/chat-reactions";
 import { BrandMark, FlowArt } from "../../components/flow-art";
 import { Captcha, captchaSiteKey } from "../../components/captcha";
-import { captchaSubmissionError, CAPTCHA_UNAVAILABLE, type CaptchaProof } from "../../lib/captcha-policy";
+import { captchaSubmissionError, type CaptchaProof } from "../../lib/captcha-policy";
 import type {
   Workspace,
   WorkspaceChat,
@@ -98,11 +98,10 @@ function AccountForm({ invited }: { invited: boolean }) {
   const [captcha, setCaptcha] = useState<CaptchaProof>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
   const pending = useRef(false);
-  const signupUnavailable = signup && process.env.NODE_ENV === "production" && !captchaSiteKey;
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (pending.current) return;
-    const verification = captchaSubmissionError(signup ? "signup" : "signin",captchaSiteKey,process.env.NODE_ENV === "production",captcha);
+    const verification = captchaSubmissionError(signup ? "signup" : "signin",captchaSiteKey,captcha);
     if (verification) { setError(verification); return; }
     pending.current = true;
     setBusy(true);
@@ -185,7 +184,6 @@ function AccountForm({ invited }: { invited: boolean }) {
         </label>
         {!signup && <a className="wp-text-button" href="/recover">Forgot password?</a>}
         <Captcha action={signup ? "signup" : "signin"} resetKey={captchaReset} onToken={setCaptcha} disabled={busy} />
-        {signupUnavailable && <p className="wp-alert" role="status">{CAPTCHA_UNAVAILABLE}</p>}
         {error && (
           <p className="wp-alert" role="alert">
             {error}
@@ -196,7 +194,7 @@ function AccountForm({ invited }: { invited: boolean }) {
             {notice}
           </p>
         )}
-        <button className="wp-primary" disabled={busy || signupUnavailable} type="submit">
+        <button className="wp-primary" disabled={busy} type="submit">
           {busy ? (signup ? "Creating…" : "Signing in…") : signup ? "Create account" : "Sign in"}<HubIcon name="arrow" size={16} />
         </button>
         <button
