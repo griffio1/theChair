@@ -1,0 +1,17 @@
+{
+  "id": "account-profile-read",
+  "name": "Read my account profile",
+  "path": "/api/account/profile",
+  "owner": "carter",
+  "method": "GET",
+  "status": "approved",
+  "request": [],
+  "version": 1,
+  "response": [
+    {
+      "name": "profile",
+      "type": "object",
+      "required": true
+    }
+  ]
+}

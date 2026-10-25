@@ -24,12 +24,13 @@ Only the owner of a directory edits it. Everyone else asks in the main chat.
 
 ## Current contracts
 <!-- THECHAIR:CONTRACTS:START -->
+- `GET /api/account/profile` (account-profile-read v1): request `{  }` → response `{ profile: object }`
 - `POST /api/auth/login` (auth-login v1): request `{ email: string, password: string }` → response `{ userId: string, token: string }`
 - `POST /api/invitations/accept` (workspace-invite-accept v1): request `{ token: string }` → response `{ workspaceId: string }`
 - `POST /api/workspaces` (workspace-create v1): request `{ name: string }` → response `{ workspace: object, chat: object }`
 - `GET /api/workspaces` (workspace-list v1): request `{  }` → response `{ workspaces: array }`
-- `GET /api/workspaces/:workspaceId` (workspace-detail v1): request `{  }` → response `{ workspace: object, chats: array, members: array, invitations: array, contracts: array, conflicts: array }`
 - `DELETE /api/workspaces/:workspaceId` (workspace-delete v1): request `{ name: string }` → response `{ deleted: boolean }`
+- `GET /api/workspaces/:workspaceId` (workspace-detail v1): request `{  }` → response `{ workspace: object, chats: array, members: array, invitations: array, contracts: array, conflicts: array }`
 - `POST /api/workspaces/:workspaceId/chats` (workspace-chat-create v1): request `{ title: string }` → response `{ chat: object }`
 - `GET /api/workspaces/:workspaceId/chats/:chatId/messages` (workspace-chat-messages v1): request `{  }` → response `{ messages: array }`
 - `POST /api/workspaces/:workspaceId/chats/:chatId/messages` (workspace-chat-send v2): request `{ body: string, clientMessageId: string, imageIds?: array }` → response `{ messages: array }`
