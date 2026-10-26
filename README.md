@@ -25,6 +25,7 @@ Coordinate multiple AI coding agents around shared API contracts—and catch int
   </a>
 </p>
 
+</div>
 
 ## The problem
 
