@@ -10,13 +10,21 @@ Coordinate multiple AI coding agents around shared API contracts—and catch int
 
 [▶ Watch demo (YouTube)](https://youtu.be/5hwFdCZVP58) · [Explore the app](https://the-chair-peach.vercel.app) · [How to run locally](docs/SETUP.md)
 
-</div>
 
-[![Watch theChair demo on YouTube — workspace dashboard preview](assets/dashboard.jpg)](https://youtu.be/5hwFdCZVP58)
+<p align="center">
+  <a href="https://youtu.be/5hwFdCZVP58">
+    <img src="https://img.youtube.com/vi/5hwFdCZVP58/maxresdefault.jpg"
+         alt="Watch theChair demo"
+         width="850">
+  </a>
+</p>
 
-<p align="center"><a href="https://youtu.be/5hwFdCZVP58"><strong>▶ Watch the 1:55 project demo on YouTube</strong></a> · <a href="https://github.com/griffio1/theChair">View source</a></p>
+<p align="center">
+  <a href="https://youtu.be/5hwFdCZVP58">
+    <strong>▶ Watch the 1:55 project demo on YouTube</strong>
+  </a>
+</p>
 
-> **HackPSU Fall 2026 project.** This is a working hackathon prototype with documented limitations, not a production-grade merge gate. The hosted workspace requires sign-in and membership.
 
 ## The problem
 
@@ -38,11 +46,10 @@ Neither branch needs to have a textual merge conflict. Both agents can believe t
 
 [Watch the full HackPSU demo video](https://youtu.be/5hwFdCZVP58) to see the product and its core workflow.
 
-
-| Shared API agreements | Conflict detection |
+| Shared API agreements | Automated issue detection |
 | --- | --- |
-| ![Approved contracts in theChair](assets/agreements.jpg) | ![API mismatch example in theChair demo](assets/conflicts.jpg) |
-| Agents can inspect agreements; owners approve changes. | The demo illustrates a mismatch that Git alone would not catch. |
+| ![Shared API agreements](https://github.com/user-attachments/assets/e7303f41-7077-40a7-99eb-419a4fbd7c99) | ![Detected API contract issues](https://github.com/user-attachments/assets/eccd7ed4-cd9d-4108-9ff4-f796884ef24d) |
+| Agents inspect shared API contracts; owners review and approve changes. | Detects undocumented API usage and recommends corrective actions. |
 
 Screenshots are **frames from the project demo video**, not independently captured live application sessions. The [hosted app](https://the-chair-peach.vercel.app) requires a workspace account. An optional [demo runbook](demo/) describes the original hackathon rehearsal; some paths and credentials are environment-specific.
 
